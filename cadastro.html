@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply &mdash; Cadastro</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .address-status { display:none;margin-top:8px;font-size:.78rem;color:var(--text-2);line-height:1.5; }
+    .address-status.success { color:var(--green); }
+    .address-status.error { color:var(--red); }
+    .address-toggle { background:none;border:0;color:var(--acid);font-weight:700;font-size:.82rem;padding:0;cursor:pointer;text-align:left; }
+    .address-search-wrap { display:none;margin-top:.8rem; }
+    .address-search-wrap.show { display:block; }
+    .address-results { display:none;margin-top:.6rem;border:1px solid var(--border2);border-radius:var(--r-sm);overflow:hidden;background:var(--surface2); }
+    .address-results.show { display:block; }
+    .address-result { width:100%;display:block;text-align:left;padding:10px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer;font-size:.82rem;line-height:1.4; }
+    .address-result:last-child { border-bottom:0; }
+    .address-result:hover { background:var(--acid-dim);color:var(--text); }
+  </style>
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <!-- LEFT PANEL -->
+  <div class="login-left">
+    <div class="login-left-bg"></div>
+    <div class="login-left-content">
+      <a href="index.html" class="nav-logo" style="font-size:1.8rem">
+        <div class="dot"></div> MAPLY
+      </a>
+      <div class="login-big-text">
+        CADASTRE.<br>
+        REPORTE.<br>
+        <span>MELHORE.</span>
+      </div>
+    </div>
+    <div class="login-left-quote">
+      "Participe da rede que transforma problemas de mobilidade em dados,
+      acompanhamento e solu&ccedil;&otilde;es para a cidade."
+    </div>
+
+    <!-- Mini stats -->
+    <div style="display:flex;gap:2rem;margin-top:2rem;position:relative;z-index:1">
+      <div>
+        <div id="left-total" style="font-family:var(--font-display);font-size:2rem;color:var(--acid)">0</div>
+        <div style="font-size:.75rem;color:var(--text-3)">OCORR&Ecirc;NCIAS</div>
+      </div>
+      <div>
+        <div id="left-res" style="font-family:var(--font-display);font-size:2rem;color:var(--green)">0</div>
+        <div style="font-size:.75rem;color:var(--text-3)">RESOLVIDAS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="login-right">
+    <div class="login-box">
+      <h1 class="login-title">CRIAR CONTA</h1>
+      <p class="login-sub">Cadastre-se para reportar e acompanhar ocorr&ecirc;ncias da sua regi&atilde;o.</p>
+
+      <div class="login-form" id="form-cadastro">
+        <div class="form-group">
+          <label class="form-label">NOME</label>
+          <input type="text" class="form-input" id="cadastro-nome" placeholder="Seu nome" autocomplete="name">
+          <span class="form-error" id="err-nome">Informe seu nome</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">EMAIL</label>
+          <input type="email" class="form-input" id="cadastro-email" placeholder="seu@email.com" autocomplete="email">
+          <span class="form-error" id="err-email">Email inv&aacute;lido</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">CEP</label>
+          <input type="text" class="form-input" id="cadastro-cep" placeholder="00000-000" autocomplete="postal-code" inputmode="numeric" maxlength="9">
+          <span class="form-error" id="err-cep">Informe um CEP v&aacute;lido ou selecione um endere&ccedil;o</span>
+          <div class="address-status" id="cep-status"></div>
+          <button type="button" class="address-toggle" id="btn-address-search">N&atilde;o sabe o CEP? Clique aqui.</button>
+          <div class="address-search-wrap" id="address-search-wrap">
+            <input type="text" class="form-input" id="cadastro-address-search" placeholder="Ex: Avenida Paulista, S&atilde;o Paulo" style="margin-top:.8rem">
+            <div class="address-results" id="address-results"></div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">SENHA</label>
+          <div class="password-wrap">
+            <input type="password" class="form-input" id="cadastro-pass" placeholder="********" autocomplete="new-password">
+            <button class="password-toggle" type="button" id="toggle-pass"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <span class="form-error" id="err-pass">Use pelo menos 6 caracteres</span>
+        </div>
+
+        <button class="btn btn-primary w-full" style="justify-content:center;padding:13px" id="btn-cadastro">
+          Criar conta &rarr;
+        </button>
+      </div>
+
+      <div class="login-footer">
+        J&aacute; tem uma conta? <a href="login.html">Entrar</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    $('#toggle-pass').addEventListener('click', () => {
+      const i = $('#cadastro-pass');
+      i.type = i.type === 'password' ? 'text' : 'password';
+    });
+
+    $('#cadastro-cep').addEventListener('input', handleCepInput);
+    $('#cadastro-cep').addEventListener('blur', lookupCep);
+    $('#btn-address-search').addEventListener('click', () => {
+      $('#address-search-wrap').classList.toggle('show');
+      if ($('#address-search-wrap').classList.contains('show')) $('#cadastro-address-search').focus();
+    });
+    $('#cadastro-address-search').addEventListener('input', () => {
+      clearTimeout(addressSearchTimer);
+      addressSearchTimer = setTimeout(searchAddressByText, 450);
+    });
+    $('#btn-cadastro').addEventListener('click', doCadastro);
+    $('#cadastro-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doCadastro(); });
+
+    try {
+      const ocs = await api('ocorrencias/public');
+      $('#left-total').textContent = ocs.length;
+      $('#left-res').textContent = ocs.filter(o => o.status === 'resolvido').length;
+    } catch (e) {
+      $('#left-total').textContent = '-';
+      $('#left-res').textContent = '-';
+    }
+  });
+
+  let cepData = null;
+  let addressSearchTimer = null;
+
+  function onlyDigits(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  function formatCep(value) {
+    const digits = onlyDigits(value).slice(0, 8);
+    return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+  }
+
+  function setCepStatus(message, type = 'info') {
+    const el = $('#cep-status');
+    el.style.display = message ? 'block' : 'none';
+    el.className = `address-status ${type}`;
+    el.textContent = message || '';
+  }
+
+  function renderLocation(data) {
+    const parts = [
+      data.logradouro,
+      data.bairro,
+      data.localidade && data.uf ? `${data.localidade}/${data.uf}` : data.localidade || data.uf
+    ].filter(Boolean);
+
+    setCepStatus(parts.length ? parts.join(' - ') : 'Localizacao encontrada.', 'success');
+  }
+
+  function selectAddress(data) {
+    cepData = {
+      cep: data.cep ? onlyDigits(data.cep) : null,
+      logradouro: data.logradouro || null,
+      bairro: data.bairro || data.localidade || null,
+      localidade: data.localidade || null,
+      uf: data.uf || null,
+      complemento: data.complemento || null,
+      display: data.display || null
+    };
+
+    if (cepData.cep) $('#cadastro-cep').value = formatCep(cepData.cep);
+    renderLocation(cepData);
+    $('#err-cep').classList.remove('show');
+    $('#address-results').classList.remove('show');
+    $('#address-results').innerHTML = '';
+  }
+
+  async function searchAddressByText() {
+    const q = $('#cadastro-address-search').value.trim();
+    const results = $('#address-results');
+    if (q.length < 3) {
+      results.classList.remove('show');
+      results.innerHTML = '';
+      return;
+    }
+
+    results.classList.add('show');
+    results.innerHTML = '<div class="address-result">Buscando enderecos...</div>';
+
+    try {
+      const items = await api(`enderecos/search?q=${encodeURIComponent(q)}`);
+      if (!items.length) {
+        results.innerHTML = '<div class="address-result">Nenhum endereco encontrado.</div>';
+        return;
+      }
+
+      results.innerHTML = items.map((item, index) => `
+        <button type="button" class="address-result" data-index="${index}">
+          ${item.display || [item.logradouro, item.bairro, item.localidade].filter(Boolean).join(' - ')}
+        </button>
+      `).join('');
+
+      $$('.address-result[data-index]', results).forEach(btn => {
+        btn.addEventListener('click', () => {
+          const item = items[Number(btn.dataset.index)];
+          selectAddress(item);
+          $('#cadastro-address-search').value = item.display || [item.logradouro, item.bairro, item.localidade].filter(Boolean).join(' - ');
+        });
+      });
+    } catch (e) {
+      results.innerHTML = `<div class="address-result">${e.message || 'Nao foi possivel buscar enderecos.'}</div>`;
+    }
+  }
+
+  function handleCepInput() {
+    $('#cadastro-cep').value = formatCep($('#cadastro-cep').value);
+    $('#err-cep').classList.remove('show');
+    cepData = null;
+
+    if (onlyDigits($('#cadastro-cep').value).length === 8) {
+      lookupCep();
+    } else {
+      setCepStatus('');
+    }
+  }
+
+  async function lookupCep() {
+    const cep = onlyDigits($('#cadastro-cep').value);
+    if (!cep) {
+      cepData = null;
+      setCepStatus('');
+      return;
+    }
+
+    if (cep.length !== 8) {
+      cepData = null;
+      setCepStatus('CEP incompleto.', 'error');
+      return;
+    }
+
+    setCepStatus('Buscando localizacao...');
+    try {
+      selectAddress(await api(`cep/${cep}`));
+    } catch (e) {
+      cepData = null;
+      setCepStatus(e.message || 'Nao foi possivel buscar este CEP.', 'error');
+    }
+  }
+
+  async function doCadastro() {
+    const nome = $('#cadastro-nome').value.trim();
+    const email = $('#cadastro-email').value.trim();
+    const cep = onlyDigits($('#cadastro-cep').value);
+    const senha = $('#cadastro-pass').value;
+    let ok = true;
+
+    if (cep.length === 8 && (!cepData || cepData.cep !== cep)) {
+      await lookupCep();
+    }
+
+    const bairro = cepData ? (cepData.bairro || cepData.localidade || '').trim() : '';
+
+    if (!nome) {
+      $('#err-nome').classList.add('show'); ok = false;
+    } else { $('#err-nome').classList.remove('show'); }
+
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      $('#err-email').classList.add('show'); ok = false;
+    } else { $('#err-email').classList.remove('show'); }
+
+    if ((!cepData && cep.length !== 8) || !cepData || !bairro) {
+      $('#err-cep').classList.add('show'); ok = false;
+    } else { $('#err-cep').classList.remove('show'); }
+
+    if (!senha || senha.length < 6) {
+      $('#err-pass').classList.add('show'); ok = false;
+    } else { $('#err-pass').classList.remove('show'); }
+
+    if (!ok) return;
+
+    try {
+      const res = await api('auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          nome,
+          email,
+          senha,
+          bairro,
+          cep: cepData.cep || cep || null,
+          logradouro: cepData.logradouro || null,
+          localidade: cepData.localidade || null,
+          uf: cepData.uf || null
+        })
+      });
+      Auth.login(res.token, res.user);
+      showToast('Cadastro realizado! Bem-vindo.', 'success');
+      setTimeout(() => location.href = 'dashboard.html', 800);
+    } catch (e) {
+      showToast(e.message || 'Nao foi possivel criar sua conta.', 'error');
+    }
+  }
+</script>
+</body>
+</html>

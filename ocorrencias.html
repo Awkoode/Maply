@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply — Ocorrências</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .view-toggle { display:flex;gap:4px; }
+    .view-btn { width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border);color:var(--text-3);cursor:pointer;transition:all .2s;font-size:.95rem; }
+    .view-btn.active { background:var(--acid-dim);border-color:var(--acid);color:var(--acid); }
+    .oc-table-actions { display:flex;gap:4px; }
+    #oc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem; }
+    #oc-table-wrap { display:none; }
+  </style>
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <nav class="nav">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <button class="btn-icon" id="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
+      <a href="index.html" class="nav-logo"><div class="dot"></div>MAPLY</a>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocorrencias.html" class="active">Ocorrências</a>
+      <a href="mapa.html">Mapa</a>
+      <a href="nova.html">+ Nova</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
+    <button class="nav-mobile-btn" id="nav-mobile-btn"><i class="fa-solid fa-bars"></i></button>
+  </nav>
+  <div class="nav-drawer" id="nav-drawer">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="ocorrencias.html" class="active">Ocorrências</a>
+    <a href="mapa.html">Mapa</a>
+    <a href="nova.html">+ Nova Ocorrência</a>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">Menu</div>
+      <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-chart-simple"></i></span><span class="sidebar-label">Dashboard</span></a>
+      <a href="ocorrencias.html" class="sidebar-item active"><span class="sidebar-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="sidebar-label">Ocorrências</span></a>
+      <a href="mapa.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-map"></i></span><span class="sidebar-label">Mapa</span></a>
+      <a href="nova.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-plus"></i></span><span class="sidebar-label">Nova Ocorrência</span></a>
+      <div class="sidebar-section">Conta</div>
+      <a href="#" class="sidebar-item" onclick="logout()"><span class="sidebar-icon"><i class="fa-solid fa-door-open"></i></span><span class="sidebar-label">Sair</span></a>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">OCORRÊNCIAS</h1>
+          <p class="page-sub" id="oc-count-label">Carregando...</p>
+        </div>
+        <div class="page-actions">
+          <div class="view-toggle">
+            <button class="view-btn active" id="btn-grid" title="Grade">⊞</button>
+            <button class="view-btn" id="btn-table" title="Tabela">≡</button>
+          </div>
+          <a href="nova.html" class="btn btn-primary">+ Nova</a>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="filter-bar">
+        <div class="filter-search">
+          <span class="filter-search-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+          <input type="text" class="form-input" id="search-input" placeholder="Buscar por tipo, bairro, descrição…">
+        </div>
+        <button class="filter-chip active" data-filter="all">Todos</button>
+        <button class="filter-chip" data-filter="aberto"><i class="fa-solid fa-circle" style="color:var(--red)"></i> Aberto</button>
+        <button class="filter-chip" data-filter="analise"><i class="fa-solid fa-circle" style="color:var(--orange)"></i> Em análise</button>
+        <button class="filter-chip" data-filter="resolvido"><i class="fa-solid fa-circle-check" style="color:var(--green)"></i> Resolvido</button>
+        <select class="form-input" style="width:auto;min-width:160px" id="sort-sel">
+          <option value="new">Mais recentes</option>
+          <option value="old">Mais antigas</option>
+          <option value="votes">Mais votados</option>
+        </select>
+      </div>
+
+      <!-- GRID VIEW -->
+      <div id="oc-grid"></div>
+
+      <!-- TABLE VIEW -->
+      <div id="oc-table-wrap">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Tipo</th>
+                <th>Bairro</th>
+                <th>Status</th>
+                <th>Data</th>
+                <th>Votos</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="oc-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- EMPTY STATE -->
+      <div class="empty-state" id="empty-state" style="display:none">
+        <div class="empty-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+        <div class="empty-title">Nenhuma ocorrência encontrada</div>
+        <div class="empty-desc">Tente mudar os filtros ou <a href="nova.html" style="color:var(--acid)">cadastre uma nova</a>.</div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let currentFilter = 'all';
+    let currentSort = 'new';
+    let currentSearch = '';
+    let viewMode = 'grid';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!requireAuth()) return;
+      renderList();
+
+      // Filter chips
+      $$('.filter-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          $$('.filter-chip').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          renderList();
+        });
+      });
+
+      // Search
+      $('#search-input').addEventListener('input', e => {
+        currentSearch = e.target.value.toLowerCase();
+        renderList();
+      });
+
+      // Sort
+      $('#sort-sel').addEventListener('change', e => {
+        currentSort = e.target.value;
+        renderList();
+      });
+
+      // View toggle
+      $('#btn-grid').addEventListener('click', () => {
+        viewMode = 'grid';
+        $('#btn-grid').classList.add('active');
+        $('#btn-table').classList.remove('active');
+        $('#oc-grid').style.display = '';
+        $('#oc-table-wrap').style.display = 'none';
+        renderList();
+      });
+      $('#btn-table').addEventListener('click', () => {
+        viewMode = 'table';
+        $('#btn-table').classList.add('active');
+        $('#btn-grid').classList.remove('active');
+        $('#oc-grid').style.display = 'none';
+        $('#oc-table-wrap').style.display = 'block';
+        renderList();
+      });
+
+      // Sidebar
+      $('#sidebar-toggle').addEventListener('click', () => {
+        $('#sidebar').classList.toggle('open');
+        $('#sidebar-overlay').classList.toggle('open');
+      });
+      $('#sidebar-overlay').addEventListener('click', () => {
+        $('#sidebar').classList.remove('open');
+        $('#sidebar-overlay').classList.remove('open');
+      });
+    });
+
+    function getFiltered() {
+      let ocs = DB.ocorrencias;
+      if (currentFilter !== 'all') ocs = ocs.filter(o=>o.status===currentFilter);
+      if (currentSearch) ocs = ocs.filter(o=>
+        o.tipo.toLowerCase().includes(currentSearch) ||
+        o.desc.toLowerCase().includes(currentSearch) ||
+        o.bairro.toLowerCase().includes(currentSearch) ||
+        o.local.toLowerCase().includes(currentSearch)
+      );
+      if (currentSort==='new')   ocs = [...ocs].sort((a,b)=>new Date(b.data)-new Date(a.data));
+      if (currentSort==='old')   ocs = [...ocs].sort((a,b)=>new Date(a.data)-new Date(b.data));
+      if (currentSort==='votes') ocs = [...ocs].sort((a,b)=>(b.votos||0)-(a.votos||0));
+      return ocs;
+    }
+
+    const icons = {
+      'Buraco na via':'fa-solid fa-road-circle-exclamation',
+      'Semáforo quebrado':'fa-solid fa-traffic-light',
+      'Sinalização ausente':'fa-solid fa-exclamation-triangle',
+      'Alagamento':'fa-solid fa-water',
+      'Obra sem sinalização':'fa-solid fa-hard-hat',
+      'Lixo na pista':'fa-solid fa-trash'
+    };
+
+    function renderList() {
+      const ocs = getFiltered();
+      $('#oc-count-label').textContent = `${ocs.length} ocorrência${ocs.length!==1?'s':''} encontrada${ocs.length!==1?'s':''}`;
+
+      $('#empty-state').style.display = ocs.length ? 'none' : 'block';
+
+      if (viewMode === 'grid') {
+        $('#oc-grid').innerHTML = ocs.map(o=>`
+          <div class="oc-card">
+            <div class="oc-card-header">
+              <div>
+                <div class="oc-card-id">${o.id}</div>
+                <div class="oc-card-title"><i class="${icons[o.tipo]||'fa-solid fa-map-pin'}"></i> ${o.tipo}</div>
+              </div>
+              ${badgeHtml(o.status)}
+            </div>
+            <div class="oc-card-desc">${o.desc}</div>
+            <div class="oc-card-footer">
+              <div class="oc-card-meta">
+                <span><i class="fa-solid fa-map-pin"></i> ${o.bairro}</span>
+                <span><i class="fa-solid fa-calendar-days"></i> ${formatDate(o.data)}</span>
+                <span><i class="fa-solid fa-thumbs-up"></i> ${o.votos||0}</span>
+              </div>
+              <div style="display:flex;gap:4px">
+                <a href="detalhe.html?id=${o.id}" class="btn btn-secondary btn-sm">Ver</a>
+                <button class="btn btn-danger btn-sm" onclick="deleteOc('${o.id}')"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        $('#oc-table-body').innerHTML = ocs.map(o=>`
+          <tr>
+            <td class="td-id">${o.id}</td>
+            <td><i class="${icons[o.tipo]||'fa-solid fa-map-pin'}"></i> ${o.tipo}</td>
+            <td style="color:var(--text-2)">${o.bairro}</td>
+            <td>${badgeHtml(o.status)}</td>
+            <td style="color:var(--text-3);font-family:var(--font-mono);font-size:.78rem">${formatDate(o.data)}</td>
+            <td style="color:var(--text-2);font-family:var(--font-mono)">${o.votos||0}</td>
+            <td>
+              <div class="oc-table-actions">
+                <a href="detalhe.html?id=${o.id}" class="btn btn-secondary btn-sm">Ver</a>
+                <button class="btn btn-danger btn-sm" onclick="deleteOc('${o.id}')"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function deleteOc(id) {
+      confirmDelete(id, () => {
+        const ocs = DB.ocorrencias.filter(o=>o.id!==id);
+        DB.ocorrencias = ocs;
+        showToast(`Ocorrência ${id} excluída.`, 'success');
+        renderList();
+      });
+    }
+  </script>
+</body>
+</html>

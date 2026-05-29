@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply — Detalhe</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .info-row { display:flex;align-items:flex-start;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--border); }
+    .info-row:last-child{border:none;}
+    .info-key { font-size:.78rem;font-weight:700;letter-spacing:.06em;color:var(--text-3);text-transform:uppercase;min-width:120px;padding-top:1px; }
+    .info-val { font-size:.9rem;color:var(--text);flex:1; }
+    .vote-btn { display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:99px;border:1px solid var(--border2);background:none;color:var(--text-2);cursor:pointer;font-size:.88rem;transition:all .2s; }
+    .vote-btn:hover,.vote-btn.voted { border-color:var(--acid);color:var(--acid);background:var(--acid-dim); }
+    .edit-save-row { display:flex;gap:.75rem;margin-top:1.5rem;flex-wrap:wrap; }
+  </style>
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <nav class="nav">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <button class="btn-icon" id="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
+      <a href="index.html" class="nav-logo"><div class="dot"></div>MAPLY</a>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocorrencias.html" class="active">Ocorrências</a>
+      <a href="mapa.html">Mapa</a>
+      <a href="nova.html">+ Nova</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
+    <button class="nav-mobile-btn" id="nav-mobile-btn"><i class="fa-solid fa-bars"></i></button>
+  </nav>
+  <div class="nav-drawer" id="nav-drawer">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="ocorrencias.html" class="active">Ocorrências</a>
+    <a href="mapa.html">Mapa</a>
+    <a href="nova.html">+ Nova</a>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">Menu</div>
+      <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-chart-simple"></i></span><span class="sidebar-label">Dashboard</span></a>
+      <a href="ocorrencias.html" class="sidebar-item active"><span class="sidebar-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="sidebar-label">Ocorrências</span></a>
+      <a href="mapa.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-map"></i></span><span class="sidebar-label">Mapa</span></a>
+      <a href="nova.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-plus"></i></span><span class="sidebar-label">Nova Ocorrência</span></a>
+      <div class="sidebar-section">Conta</div>
+      <a href="#" class="sidebar-item" onclick="logout()"><span class="sidebar-icon"><i class="fa-solid fa-door-open"></i></span><span class="sidebar-label">Sair</span></a>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" id="det-id">OCORRÊNCIA</h1>
+          <p class="page-sub" id="det-tipo">Carregando...</p>
+        </div>
+        <div class="page-actions">
+          <a href="ocorrencias.html" class="btn btn-secondary">← Voltar</a>
+          <button class="btn btn-danger btn-sm" id="btn-delete"><i class="fa-solid fa-trash"></i> Excluir</button>
+        </div>
+      </div>
+
+      <div id="not-found" style="display:none">
+        <div class="empty-state">
+          <div class="empty-icon"><i class="fa-solid fa-xmark"></i></div>
+          <div class="empty-title">Ocorrência não encontrada</div>
+          <div class="empty-desc"><a href="ocorrencias.html" style="color:var(--acid)">← Voltar para listagem</a></div>
+        </div>
+      </div>
+
+      <div id="det-content">
+        <!-- STATUS STEPS -->
+        <div class="detail-status-bar" id="status-bar">
+          <div class="status-steps">
+            <div class="status-step" id="step-aberto">
+              <div class="status-step-dot">1</div>
+              <div class="status-step-line"></div>
+              <span class="status-step-label">Aberto</span>
+            </div>
+            <div class="status-step" id="step-analise">
+              <div class="status-step-dot">2</div>
+              <div class="status-step-line"></div>
+              <span class="status-step-label">Em análise</span>
+            </div>
+            <div class="status-step" id="step-resolvido">
+              <div class="status-step-dot">3</div>
+              <span class="status-step-label">Resolvido</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- INFO CARD -->
+          <div class="card">
+            <div style="font-family:var(--font-display);font-size:1.2rem;margin-bottom:1rem">INFORMAÇÕES</div>
+
+            <div class="info-row">
+              <span class="info-key">ID</span>
+              <span class="info-val font-mono" id="d-id"></span>
+            </div>
+            <div class="info-row">
+              <span class="info-key">Tipo</span>
+              <span class="info-val" id="d-tipo"></span>
+            </div>
+            <div class="info-row">
+              <span class="info-key">Bairro</span>
+              <span class="info-val" id="d-bairro"></span>
+            </div>
+            <div class="info-row">
+              <span class="info-key">Endereço</span>
+              <span class="info-val" id="d-local"></span>
+            </div>
+            <div class="info-row">
+              <span class="info-key">Data</span>
+              <span class="info-val" id="d-data"></span>
+            </div>
+            <div class="info-row">
+              <span class="info-key">Status</span>
+              <span class="info-val" id="d-status"></span>
+            </div>
+            <div class="info-row">
+              <span class="info-key">Votos</span>
+              <span class="info-val">
+                <button class="vote-btn" id="vote-btn">
+                  <i class="fa-solid fa-thumbs-up"></i> <span id="vote-count">0</span> pessoas confirmam
+                </button>
+              </span>
+            </div>
+
+            <div style="margin-top:1.25rem">
+              <div style="font-size:.78rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">DESCRIÇÃO</div>
+              <p id="d-desc" style="font-size:.9rem;color:var(--text-2);line-height:1.6"></p>
+            </div>
+          </div>
+
+          <!-- EDIT CARD -->
+          <div class="card">
+            <div style="font-family:var(--font-display);font-size:1.2rem;margin-bottom:1rem">EDITAR STATUS</div>
+
+            <div style="display:flex;flex-direction:column;gap:1rem">
+              <div class="form-group">
+                <label class="form-label">STATUS</label>
+                <select class="form-input form-select" id="edit-status">
+                  <option value="aberto">Aberto</option>
+                  <option value="analise">Em análise</option>
+                  <option value="resolvido">Resolvido</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">DESCRIÇÃO</label>
+                <textarea class="form-input form-textarea" id="edit-desc" rows="4"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">ENDEREÇO</label>
+                <input type="text" class="form-input" id="edit-local">
+              </div>
+              <div class="edit-save-row">
+                <button class="btn btn-primary" id="btn-save"><i class="fa-solid fa-floppy-disk"></i> Salvar alterações</button>
+                <button class="btn btn-secondary" id="btn-reset">Descartar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RELATED -->
+        <div class="card mt-6">
+          <div style="font-family:var(--font-display);font-size:1.2rem;margin-bottom:1rem">OCORRÊNCIAS PRÓXIMAS</div>
+          <div id="related-list" class="grid-2"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let currentOc = null;
+    let voted = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!requireAuth()) return;
+
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id');
+      if (!id) { showNotFound(); return; }
+
+      const ocs = DB.ocorrencias;
+      currentOc = ocs.find(o=>o.id===id);
+      if (!currentOc) { showNotFound(); return; }
+
+      renderDetail();
+
+      $('#btn-save').addEventListener('click', saveEdits);
+      $('#btn-reset').addEventListener('click', resetEdits);
+      $('#btn-delete').addEventListener('click', () => {
+        confirmDelete(currentOc.id, () => {
+          DB.ocorrencias = DB.ocorrencias.filter(o=>o.id!==currentOc.id);
+          showToast('Ocorrência excluída.', 'success');
+          setTimeout(() => location.href = 'ocorrencias.html', 800);
+        });
+      });
+      $('#vote-btn').addEventListener('click', doVote);
+
+      // Sidebar
+      $('#sidebar-toggle').addEventListener('click', () => {
+        $('#sidebar').classList.toggle('open');
+        $('#sidebar-overlay').classList.toggle('open');
+      });
+      $('#sidebar-overlay').addEventListener('click', () => {
+        $('#sidebar').classList.remove('open');
+        $('#sidebar-overlay').classList.remove('open');
+      });
+    });
+
+    const icons = {
+      'Buraco na via':'fa-solid fa-road-circle-exclamation',
+      'Semáforo quebrado':'fa-solid fa-traffic-light',
+      'Sinalização ausente':'fa-solid fa-exclamation-triangle',
+      'Alagamento':'fa-solid fa-water',
+      'Obra sem sinalização':'fa-solid fa-hard-hat',
+      'Lixo na pista':'fa-solid fa-trash'
+    };
+
+    function renderDetail() {
+      const o = currentOc;
+      $('#det-id').textContent = o.id;
+      $('#det-tipo').innerHTML = `<i class="${icons[o.tipo]||'fa-solid fa-map-pin'}"></i> ${o.tipo} — ${o.bairro}`;
+
+      $('#d-id').textContent = o.id;
+      $('#d-tipo').innerHTML = tipoBadge(o.tipo);
+      $('#d-bairro').textContent = o.bairro;
+      $('#d-local').textContent = o.local;
+      $('#d-data').textContent = formatDate(o.data);
+      $('#d-status').innerHTML = badgeHtml(o.status);
+      $('#d-desc').textContent = o.desc;
+      $('#vote-count').textContent = o.votos || 0;
+
+      // Edit fields
+      $('#edit-status').value = o.status;
+      $('#edit-desc').value = o.desc;
+      $('#edit-local').value = o.local;
+
+      // Status steps
+      const steps = ['aberto','analise','resolvido'];
+      const idx = steps.indexOf(o.status);
+      steps.forEach((s,i) => {
+        const el = $(`#step-${s}`);
+        el.classList.remove('done','current');
+        if (i < idx) el.classList.add('done');
+        else if (i === idx) el.classList.add('current');
+      });
+
+      // Related (same bairro, different id)
+      const related = DB.ocorrencias.filter(r=>r.bairro===o.bairro && r.id!==o.id).slice(0,4);
+      if (related.length) {
+        $('#related-list').innerHTML = related.map(r=>`
+          <div class="oc-card card-hover" style="cursor:pointer" onclick="location.href='detalhe.html?id=${r.id}'">
+            <div class="oc-card-header">
+              <div>
+                <div class="oc-card-id">${r.id}</div>
+                <div class="oc-card-title"><i class="${icons[r.tipo]||'fa-solid fa-map-pin'}"></i> ${r.tipo}</div>
+              </div>
+              ${badgeHtml(r.status)}
+            </div>
+            <div class="oc-card-desc" style="font-size:.82rem">${r.desc.slice(0,80)}…</div>
+          </div>
+        `).join('');
+      } else {
+        $('#related-list').innerHTML = '<div style="color:var(--text-3);font-size:.88rem">Nenhuma ocorrência próxima encontrada.</div>';
+      }
+    }
+
+    function saveEdits() {
+      const newStatus = $('#edit-status').value;
+      const newDesc   = $('#edit-desc').value.trim();
+      const newLocal  = $('#edit-local').value.trim();
+
+      if (!newDesc || !newLocal) { showToast('Preencha todos os campos.','error'); return; }
+
+      const ocs = DB.ocorrencias.map(o => {
+        if (o.id !== currentOc.id) return o;
+        return { ...o, status: newStatus, desc: newDesc, local: newLocal };
+      });
+      DB.ocorrencias = ocs;
+      currentOc = ocs.find(o=>o.id===currentOc.id);
+      renderDetail();
+      showToast('Alterações salvas com sucesso!', 'success');
+    }
+
+    function resetEdits() {
+      $('#edit-status').value = currentOc.status;
+      $('#edit-desc').value = currentOc.desc;
+      $('#edit-local').value = currentOc.local;
+    }
+
+    function doVote() {
+      if (voted) { showToast('Você já confirmou esta ocorrência.','info'); return; }
+      voted = true;
+      const ocs = DB.ocorrencias.map(o => {
+        if (o.id !== currentOc.id) return o;
+        return { ...o, votos: (o.votos||0)+1 };
+      });
+      DB.ocorrencias = ocs;
+      currentOc = ocs.find(o=>o.id===currentOc.id);
+      $('#vote-count').textContent = currentOc.votos;
+      $('#vote-btn').classList.add('voted');
+      showToast('Obrigado por confirmar!', 'success');
+    }
+
+    function showNotFound() {
+      $('#det-content').style.display = 'none';
+      $('#not-found').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

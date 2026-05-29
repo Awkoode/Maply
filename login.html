@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply — Login</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <!-- LEFT PANEL -->
+  <div class="login-left">
+    <div class="login-left-bg"></div>
+    <div class="login-left-content">
+      <a href="index.html" class="nav-logo" style="font-size:1.8rem">
+        <div class="dot"></div> MAPLY
+      </a>
+      <div class="login-big-text">
+        REPORTE.<br>
+        ACOMPANHE.<br>
+        <span>RESOLVA.</span>
+      </div>
+    </div>
+    <div class="login-left-quote">
+      "Cidades inteligentes começam com cidadãos que se importam.<br>
+      Cada reporte é um passo para um trânsito melhor."
+    </div>
+
+    <!-- Mini stats -->
+    <div style="display:flex;gap:2rem;margin-top:2rem;position:relative;z-index:1">
+      <div>
+        <div id="left-total" style="font-family:var(--font-display);font-size:2rem;color:var(--acid)">0</div>
+        <div style="font-size:.75rem;color:var(--text-3)">OCORRÊNCIAS</div>
+      </div>
+      <div>
+        <div id="left-res" style="font-family:var(--font-display);font-size:2rem;color:var(--green)">0</div>
+        <div style="font-size:.75rem;color:var(--text-3)">RESOLVIDAS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="login-right">
+    <div class="login-box">
+      <div id="tab-login">
+        <h1 class="login-title">BEM-VINDO</h1>
+        <p class="login-sub">Entre na sua conta para reportar e acompanhar ocorrências.</p>
+
+        <div class="login-form" id="form-login">
+          <div class="form-group">
+            <label class="form-label">EMAIL</label>
+            <input type="email" class="form-input" id="login-email" placeholder="seu@email.com" autocomplete="email">
+            <span class="form-error" id="err-email">Email inválido</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">SENHA</label>
+            <div class="password-wrap">
+              <input type="password" class="form-input" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+              <button class="password-toggle" type="button" id="toggle-pass"><i class="fa-solid fa-eye"></i></button>
+            </div>
+            <span class="form-error" id="err-pass">Senha incorreta</span>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:.83rem">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text-2)">
+              <input type="checkbox" style="accent-color:var(--acid)"> Lembrar-me
+            </label>
+            <a href="#" onclick="showToast('Funcionalidade em breve!','info')" style="color:var(--acid)">Esqueci a senha</a>
+          </div>
+
+          <button class="btn btn-primary w-full" style="justify-content:center;padding:13px" id="btn-login">
+            Entrar →
+          </button>
+        </div>
+
+        <div class="login-footer">
+          Ainda n&atilde;o tem conta? <a href="cadastro.html">Criar cadastro</a>
+        </div>
+      </div>
+
+
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Carregar estatísticas públicas
+    try {
+      const ocs = await api('ocorrencias/public');
+      $('#left-total').textContent = ocs.length;
+      $('#left-res').textContent = ocs.filter(o=>o.status==='resolvido').length;
+    } catch (e) {
+      $('#left-total').textContent = '—';
+      $('#left-res').textContent = '—';
+    }
+
+    // Password toggle
+    $('#toggle-pass').addEventListener('click', () => {
+      const i = $('#login-pass');
+      i.type = i.type==='password' ? 'text' : 'password';
+    });
+
+    // Login submit
+    $('#btn-login').addEventListener('click', doLogin);
+    $('#login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  });
+
+  async function doLogin() {
+    const email = $('#login-email').value.trim();
+    const pass  = $('#login-pass').value;
+    let ok = true;
+
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      $('#err-email').classList.add('show'); ok = false;
+    } else { $('#err-email').classList.remove('show'); }
+
+    if (!pass) {
+      $('#err-pass').classList.add('show'); ok = false;
+    } else { $('#err-pass').classList.remove('show'); }
+
+    if (!ok) return;
+
+    try {
+      const res = await api('auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, senha: pass })
+      });
+      Auth.login(res.token, res.user);
+      showToast('Login realizado! Bem-vindo.', 'success');
+      setTimeout(() => location.href = 'dashboard.html', 800);
+    } catch (e) {
+      $('#err-pass').classList.add('show');
+      $('#err-pass').textContent = e.message || 'Email ou senha incorretos';
+    }
+  }
+</script>
+</body>
+</html>

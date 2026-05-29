@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply — Nova Ocorrência</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .form-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:2rem;max-width:700px; }
+    .char-counter { font-size:.73rem;color:var(--text-3);text-align:right;margin-top:2px; }
+    .tipo-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:.25rem; }
+    .tipo-opt { padding:10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:var(--bg2);cursor:pointer;text-align:center;font-size:.82rem;color:var(--text-2);transition:all .2s;user-select:none; }
+    .tipo-opt:hover { border-color:var(--acid-glow);color:var(--text); }
+    .tipo-opt.selected { border-color:var(--acid);background:var(--acid-dim);color:var(--acid); }
+    .tipo-opt .tipo-icon { font-size:1.3rem;display:block;margin-bottom:4px; }
+    .success-screen { display:none;text-align:center;padding:3rem 2rem; }
+    .success-screen.show { display:flex;flex-direction:column;align-items:center;gap:1rem; }
+    .success-icon { font-size:3.5rem; }
+    .success-id { font-family:var(--font-mono);font-size:1.1rem;color:var(--acid);background:var(--acid-dim);padding:6px 16px;border-radius:99px; }
+    .address-status { display:none;margin-top:8px;font-size:.78rem;color:var(--text-2);line-height:1.5; }
+    .address-status.success { color:var(--green); }
+    .address-status.error { color:var(--red); }
+    .address-toggle { background:none;border:0;color:var(--acid);font-weight:700;font-size:.82rem;padding:0;cursor:pointer;text-align:left; }
+    .address-results { display:none;margin-top:.6rem;border:1px solid var(--border2);border-radius:var(--r-sm);overflow:hidden;background:var(--surface2); }
+    .address-results.show { display:block; }
+    .address-result { width:100%;display:block;text-align:left;padding:10px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer;font-size:.82rem;line-height:1.4; }
+    .address-result:last-child { border-bottom:0; }
+    .address-result:hover { background:var(--acid-dim);color:var(--text); }
+    @media(max-width:600px){ .tipo-grid{grid-template-columns:repeat(2,1fr);} }
+  </style>
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <nav class="nav">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <button class="btn-icon" id="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
+      <a href="index.html" class="nav-logo"><div class="dot"></div>MAPLY</a>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocorrencias.html">Ocorrências</a>
+      <a href="mapa.html">Mapa</a>
+      <a href="nova.html" class="active">+ Nova</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
+    <button class="nav-mobile-btn" id="nav-mobile-btn"><i class="fa-solid fa-bars"></i></button>
+  </nav>
+  <div class="nav-drawer" id="nav-drawer">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="ocorrencias.html">Ocorrências</a>
+    <a href="mapa.html">Mapa</a>
+    <a href="nova.html" class="active">+ Nova Ocorrência</a>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">Menu</div>
+      <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-chart-simple"></i></span><span class="sidebar-label">Dashboard</span></a>
+      <a href="ocorrencias.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="sidebar-label">Ocorrências</span></a>
+      <a href="mapa.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-map"></i></span><span class="sidebar-label">Mapa</span></a>
+      <a href="nova.html" class="sidebar-item active"><span class="sidebar-icon"><i class="fa-solid fa-plus"></i></span><span class="sidebar-label">Nova Ocorrência</span></a>
+      <div class="sidebar-section">Conta</div>
+      <a href="#" class="sidebar-item" onclick="logout()"><span class="sidebar-icon"><i class="fa-solid fa-door-open"></i></span><span class="sidebar-label">Sair</span></a>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">NOVA OCORRÊNCIA</h1>
+          <p class="page-sub">Reporte um problema no trânsito da sua cidade.</p>
+        </div>
+        <a href="ocorrencias.html" class="btn btn-secondary">← Voltar</a>
+      </div>
+
+      <!-- FORM -->
+      <div class="form-card" id="form-wrap">
+        <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+          <!-- TIPO -->
+          <div class="form-group">
+            <label class="form-label">TIPO DE OCORRÊNCIA *</label>
+            <div class="tipo-grid" id="tipo-grid">
+              <div class="tipo-opt" data-tipo="Buraco na via"><span class="tipo-icon"><i class="fa-solid fa-road-circle-exclamation"></i></span>Buraco na via</div>
+              <div class="tipo-opt" data-tipo="Semáforo quebrado"><span class="tipo-icon"><i class="fa-solid fa-traffic-light"></i></span>Semáforo quebrado</div>
+              <div class="tipo-opt" data-tipo="Sinalização ausente"><span class="tipo-icon"><i class="fa-solid fa-exclamation-triangle"></i></span>Sinalização ausente</div>
+              <div class="tipo-opt" data-tipo="Alagamento"><span class="tipo-icon"><i class="fa-solid fa-water"></i></span>Alagamento</div>
+              <div class="tipo-opt" data-tipo="Obra sem sinalização"><span class="tipo-icon"><i class="fa-solid fa-hard-hat"></i></span>Obra sem sinalização</div>
+              <div class="tipo-opt" data-tipo="Lixo na pista"><span class="tipo-icon"><i class="fa-solid fa-trash"></i></span>Lixo na pista</div>
+              <div class="tipo-opt" data-tipo="Acidente registrado"><span class="tipo-icon"><i class="fa-solid fa-car-crash"></i></span>Acidente</div>
+              <div class="tipo-opt" data-tipo="Iluminação pública"><span class="tipo-icon"><i class="fa-solid fa-lightbulb"></i></span>Iluminação</div>
+              <div class="tipo-opt" data-tipo="Calçada obstruída"><span class="tipo-icon"><i class="fa-solid fa-person-walking"></i></span>Calçada obstruída</div>
+            </div>
+            <span class="form-error" id="err-tipo">Selecione o tipo de ocorrência</span>
+          </div>
+
+          <div class="form-grid">
+            <!-- CEP -->
+            <div class="form-group">
+              <label class="form-label">CEP *</label>
+              <input type="text" class="form-input" id="f-cep" placeholder="00000-000" autocomplete="postal-code" inputmode="numeric" maxlength="9">
+              <span class="form-error" id="err-address">Informe um CEP v&aacute;lido ou selecione um endere&ccedil;o</span>
+              <div class="address-status" id="address-status"></div>
+              <button type="button" class="address-toggle" id="btn-address-search">N&atilde;o sabe o CEP? Clique aqui.</button>
+            </div>
+            <!-- DATA -->
+            <div class="form-group">
+              <label class="form-label">DATA DA OCORRÊNCIA *</label>
+              <input type="date" class="form-input" id="f-data">
+              <span class="form-error" id="err-data">Informe a data</span>
+            </div>
+          </div>
+
+          <!-- LOCAL -->
+          <div class="form-group">
+            <label class="form-label">ENDEREÇO / LOCALIZAÇÃO *</label>
+            <input type="text" class="form-input" id="f-local" placeholder="Ex: Av. Beira Mar Norte, 1200 — próximo ao semáforo">
+            <span class="form-error" id="err-local">Informe o endereço</span>
+            <div class="address-results" id="address-results-main"></div>
+          </div>
+
+          <!-- DESCRIÇÃO -->
+          <div class="form-group">
+            <label class="form-label">DESCRIÇÃO *</label>
+            <textarea class="form-input form-textarea" id="f-desc" placeholder="Descreva detalhadamente o problema: tamanho, risco, horário que percebeu…" maxlength="500" rows="4"></textarea>
+            <div class="char-counter"><span id="char-count">0</span>/500 caracteres</div>
+            <span class="form-error" id="err-desc">Descreva o problema (mínimo 20 caracteres)</span>
+          </div>
+
+          <!-- STATUS INICIAL -->
+          <div class="form-group">
+            <label class="form-label">STATUS INICIAL</label>
+            <select class="form-input form-select" id="f-status">
+              <option value="aberto">Aberto</option>
+              <option value="analise">Em análise</option>
+              <option value="resolvido">Resolvido</option>
+            </select>
+          </div>
+
+          <!-- SEVERIDADE -->
+          <div class="form-group">
+            <label class="form-label">SEVERIDADE</label>
+            <div style="display:flex;gap:.5rem" id="sev-group">
+              <button type="button" class="filter-chip active" data-sev="baixa"><i class="fa-solid fa-circle-check" style="color:var(--green)"></i> Baixa</button>
+              <button type="button" class="filter-chip" data-sev="media"><i class="fa-solid fa-circle" style="color:var(--orange)"></i> Média</button>
+              <button type="button" class="filter-chip" data-sev="alta"><i class="fa-solid fa-circle" style="color:var(--red)"></i> Alta</button>
+            </div>
+          </div>
+
+          <!-- ACTIONS -->
+          <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+            <button class="btn btn-primary" id="btn-submit">
+              <i class="fa-solid fa-paper-plane"></i> Enviar Ocorrência
+            </button>
+            <button class="btn btn-secondary" id="btn-clear">Limpar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUCCESS SCREEN -->
+      <div class="form-card success-screen" id="success-screen">
+        <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
+        <h2 style="font-family:var(--font-display);font-size:2rem">OCORRÊNCIA REGISTRADA!</h2>
+        <div class="success-id" id="success-id">OC-000</div>
+        <p style="color:var(--text-2);font-size:.9rem;max-width:380px;text-align:center">
+          Sua ocorrência foi cadastrada com sucesso. Acompanhe o status na página de listagem.
+        </p>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;margin-top:.5rem">
+          <a href="ocorrencias.html" class="btn btn-primary">Ver todas as ocorrências →</a>
+          <button class="btn btn-secondary" onclick="resetForm()">+ Registrar outra</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let selectedTipo = '';
+    let selectedSev = 'baixa';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!requireAuth()) return;
+
+      // Set today as default date
+      $('#f-data').value = new Date().toISOString().split('T')[0];
+      $('#f-data').max = new Date().toISOString().split('T')[0];
+
+      // Tipo selection
+      $$('#tipo-grid .tipo-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+          $$('#tipo-grid .tipo-opt').forEach(o=>o.classList.remove('selected'));
+          opt.classList.add('selected');
+          selectedTipo = opt.dataset.tipo;
+          $('#err-tipo').classList.remove('show');
+        });
+      });
+
+      // Severidade selection
+      $$('#sev-group .filter-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          $$('#sev-group .filter-chip').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          selectedSev = btn.dataset.sev;
+        });
+      });
+
+      // Char counter
+      $('#f-desc').addEventListener('input', () => {
+        $('#char-count').textContent = $('#f-desc').value.length;
+      });
+
+      // Submit
+      $('#btn-submit').addEventListener('click', doSubmit);
+
+      // Clear
+      $('#btn-clear').addEventListener('click', resetForm);
+
+      // Sidebar
+      $('#sidebar-toggle').addEventListener('click', () => {
+        $('#sidebar').classList.toggle('open');
+        $('#sidebar-overlay').classList.toggle('open');
+      });
+      $('#sidebar-overlay').addEventListener('click', () => {
+        $('#sidebar').classList.remove('open');
+        $('#sidebar-overlay').classList.remove('open');
+      });
+    });
+
+    function doSubmit() {
+      return submitOccurrenceApi();
+    }
+
+    function resetForm() {
+      return resetOccurrenceForm();
+    }
+
+
+  </script>
+  <script>
+    let selectedAddress = null;
+    let addressSearchTimer = null;
+    let addressSearchMode = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const cepInput = $('#f-cep');
+      const toggle = $('#btn-address-search');
+      const searchInput = $('#f-local');
+
+      if (cepInput) {
+        cepInput.addEventListener('input', handleOccurrenceCepInput);
+        cepInput.addEventListener('blur', lookupOccurrenceCep);
+      }
+
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          addressSearchMode = true;
+          selectedAddress = null;
+          $('#f-cep').value = '';
+          setAddressStatus('Digite o endereço no campo abaixo e selecione uma das opções.', 'info');
+          searchInput.placeholder = 'Ex: Avenida Paulista, São Paulo';
+          searchInput.focus();
+        });
+      }
+
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          clearTimeout(addressSearchTimer);
+          if (addressSearchMode) addressSearchTimer = setTimeout(searchAddressByText, 450);
+        });
+      }
+    });
+
+    function onlyDigits(value) {
+      return String(value || '').replace(/\D/g, '');
+    }
+
+    function formatCep(value) {
+      const digits = onlyDigits(value).slice(0, 8);
+      return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+    }
+
+    function setAddressStatus(message, type = 'info') {
+      const el = $('#address-status');
+      if (!el) return;
+      el.className = `address-status ${type}`;
+      el.style.display = message ? 'block' : 'none';
+      el.textContent = message || '';
+    }
+
+    function addressLabel(data) {
+      if (!data) return '';
+      return [
+        data.logradouro,
+        data.bairro,
+        data.localidade && data.uf ? `${data.localidade}/${data.uf}` : data.localidade || data.uf
+      ].filter(Boolean).join(' - ') || data.display || '';
+    }
+
+    function selectAddress(data, source = 'cep') {
+      selectedAddress = {
+        cep: data.cep ? onlyDigits(data.cep) : null,
+        logradouro: data.logradouro || null,
+        bairro: data.bairro || data.localidade || null,
+        localidade: data.localidade || null,
+        uf: data.uf || null,
+        complemento: data.complemento || null,
+        source
+      };
+
+      if (selectedAddress.cep) $('#f-cep').value = formatCep(selectedAddress.cep);
+      setAddressStatus(addressLabel(data), 'success');
+      $('#err-address').classList.remove('show');
+      $('#address-results-main').classList.remove('show');
+      $('#address-results-main').innerHTML = '';
+    }
+
+    function handleOccurrenceCepInput() {
+      $('#f-cep').value = formatCep($('#f-cep').value);
+      selectedAddress = null;
+      $('#err-address').classList.remove('show');
+
+      if (onlyDigits($('#f-cep').value).length === 8) {
+        lookupOccurrenceCep();
+      } else {
+        setAddressStatus('');
+      }
+    }
+
+    async function lookupOccurrenceCep() {
+      const cep = onlyDigits($('#f-cep').value);
+      if (!cep) {
+        selectedAddress = null;
+        setAddressStatus('');
+        return;
+      }
+
+      if (cep.length !== 8) {
+        selectedAddress = null;
+        setAddressStatus('CEP incompleto.', 'error');
+        return;
+      }
+
+      setAddressStatus('Buscando localizacao...');
+      try {
+        const data = await api(`cep/${cep}`);
+        selectAddress(data);
+      } catch (e) {
+        selectedAddress = null;
+        setAddressStatus(e.message || 'Nao foi possivel buscar este CEP.', 'error');
+      }
+    }
+
+    async function searchAddressByText() {
+      const q = $('#f-local').value.trim();
+      const results = $('#address-results-main');
+      if (q.length < 3) {
+        results.classList.remove('show');
+        results.innerHTML = '';
+        return;
+      }
+
+      results.classList.add('show');
+      results.innerHTML = '<div class="address-result">Buscando enderecos...</div>';
+
+      try {
+        const items = await api(`enderecos/search?q=${encodeURIComponent(q)}`);
+        if (!items.length) {
+          results.innerHTML = '<div class="address-result">Nenhum endereco encontrado.</div>';
+          return;
+        }
+
+        results.innerHTML = items.map((item, index) => `
+          <button type="button" class="address-result" data-index="${index}">
+            ${item.display || addressLabel(item)}
+          </button>
+        `).join('');
+
+        $$('.address-result[data-index]', results).forEach(btn => {
+          btn.addEventListener('click', () => {
+            const item = items[Number(btn.dataset.index)];
+            selectAddress(item, 'search');
+            $('#f-local').value = item.display || addressLabel(item);
+          });
+        });
+      } catch (e) {
+        results.innerHTML = `<div class="address-result">${e.message || 'Nao foi possivel buscar enderecos.'}</div>`;
+      }
+    }
+
+    async function submitOccurrenceApi() {
+      let ok = true;
+
+      if (!selectedTipo) {
+        $('#err-tipo').classList.add('show'); ok = false;
+      }
+      if (onlyDigits($('#f-cep').value).length === 8 && !selectedAddress) {
+        await lookupOccurrenceCep();
+      }
+      if (!selectedAddress || !selectedAddress.bairro) {
+        $('#err-address').classList.add('show'); ok = false;
+      } else { $('#err-address').classList.remove('show'); }
+      if (!$('#f-data').value) {
+        $('#err-data').classList.add('show'); ok = false;
+      } else { $('#err-data').classList.remove('show'); }
+      if (!$('#f-local').value.trim()) {
+        $('#err-local').classList.add('show'); ok = false;
+      } else { $('#err-local').classList.remove('show'); }
+      if ($('#f-desc').value.trim().length < 20) {
+        $('#err-desc').classList.add('show'); ok = false;
+      } else { $('#err-desc').classList.remove('show'); }
+
+      if (!ok) { showToast('Preencha todos os campos obrigatorios.', 'error'); return; }
+
+      const localText = $('#f-local').value.trim();
+      const localParts = selectedAddress.source === 'search'
+        ? [localText]
+        : [
+            selectedAddress.logradouro,
+            localText,
+            selectedAddress.localidade && selectedAddress.uf ? `${selectedAddress.localidade}/${selectedAddress.uf}` : selectedAddress.localidade || selectedAddress.uf
+          ].filter(Boolean);
+
+      try {
+        const res = await api('ocorrencias', {
+          method: 'POST',
+          body: JSON.stringify({
+            tipo: selectedTipo,
+            descricao: $('#f-desc').value.trim(),
+            local: localParts.join(' - '),
+            bairro: selectedAddress.bairro,
+            status: $('#f-status').value,
+            data: $('#f-data').value,
+            cep: selectedAddress.cep,
+            logradouro: selectedAddress.logradouro,
+            complemento: $('#f-local').value.trim(),
+            localidade: selectedAddress.localidade,
+            uf: selectedAddress.uf
+          })
+        });
+
+        $('#form-wrap').style.display = 'none';
+        const ss = $('#success-screen');
+        ss.classList.add('show');
+        $('#success-id').textContent = res.id;
+      } catch (e) {
+        showToast(e.message || 'Nao foi possivel registrar a ocorrencia.', 'error');
+      }
+    }
+
+    function resetOccurrenceForm() {
+      $('#form-wrap').style.display = 'block';
+      $('#success-screen').classList.remove('show');
+      $$('#tipo-grid .tipo-opt').forEach(o=>o.classList.remove('selected'));
+      selectedTipo = '';
+      selectedAddress = null;
+      addressSearchMode = false;
+      $('#f-cep').value = '';
+      $('#address-results-main').classList.remove('show');
+      $('#address-results-main').innerHTML = '';
+      setAddressStatus('');
+      $('#f-local').value = '';
+      $('#f-desc').value = '';
+      $('#char-count').textContent = '0';
+      $('#f-status').value = 'aberto';
+      $('#f-data').value = new Date().toISOString().split('T')[0];
+      $$('.form-error').forEach(e=>e.classList.remove('show'));
+    }
+  </script>
+</body>
+</html>
