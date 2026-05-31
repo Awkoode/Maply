@@ -1,5 +1,6 @@
 /**
  * Maply — TomTom Traffic Layer (viewport-only, debounced, cached)
+ * Camadas: off | flow | incidents (Premium)
  */
 const TomTomTraffic = (() => {
   const DEBOUNCE_MS = 500;
@@ -33,8 +34,15 @@ const TomTomTraffic = (() => {
   let refreshTimer = null;
   let lastState = null;
   let clientCache = new Map();
-  let enabled = false;
+  let apiConfigured = false;
+  let subscribed = false;
+  let layerMode = 'off';
   let onStatusChange = null;
+  let onLayerModeChange = null;
+
+  function canUsePremiumLayers() {
+    return apiConfigured && subscribed;
+  }
 
   function getZoomTier(z) {
     if (z <= 9) return 'low';
@@ -92,11 +100,16 @@ const TomTomTraffic = (() => {
   }
 
   function clearIncidents() {
-    if (incidentLines) {
-      incidentLines.clearLayers();
-    }
-    if (markerCluster) {
-      markerCluster.clearLayers();
+    if (incidentLines) incidentLines.clearLayers();
+    if (markerCluster) markerCluster.clearLayers();
+  }
+
+  function setFlowVisible(visible) {
+    if (!flowLayer || !map) return;
+    if (visible && layerMode === 'flow' && canUsePremiumLayers()) {
+      if (!map.hasLayer(flowLayer)) flowLayer.addTo(map);
+    } else if (map.hasLayer(flowLayer)) {
+      map.removeLayer(flowLayer);
     }
   }
 
@@ -111,7 +124,7 @@ const TomTomTraffic = (() => {
 
   function renderIncidents(items, bounds) {
     clearIncidents();
-    if (!items.length) return;
+    if (!items.length || layerMode !== 'incidents') return;
 
     const viewBounds = bounds.pad(0.05);
 
@@ -162,15 +175,14 @@ const TomTomTraffic = (() => {
     if (!flowLayer || !flowConfig) return;
 
     const url = flowConfig.tileUrl;
-    if (flowLayer._url !== url) {
-      flowLayer.setUrl(url);
-    }
+    if (flowLayer._url !== url) flowLayer.setUrl(url);
     flowLayer.options.minZoom = flowConfig.minZoom || 10;
     if (getZoomTier(map.getZoom()) === 'low') {
       flowLayer.options.maxZoom = 11;
     } else {
       flowLayer.options.maxZoom = 20;
     }
+    setFlowVisible(layerMode === 'flow');
   }
 
   async function fetchTraffic(bounds, zoom) {
@@ -194,36 +206,68 @@ const TomTomTraffic = (() => {
     return data;
   }
 
+  function notifyStatus(state, meta = {}) {
+    if (onStatusChange) onStatusChange(state, meta);
+  }
+
   async function loadTraffic(force = false) {
-    if (!enabled || !map) return;
+    if (!map || layerMode === 'off' || !canUsePremiumLayers()) {
+      clearIncidents();
+      setFlowVisible(false);
+      return;
+    }
 
     const bounds = map.getBounds();
     const zoom = map.getZoom();
 
-    if (!force && !significantChange(bounds, zoom)) return;
-
-    lastState = { center: bounds.getCenter(), zoom };
-
-    if (onStatusChange) onStatusChange('loading');
-
-    try {
-      const data = await fetchTraffic(bounds, zoom);
-
-      if (data.flow) {
-        updateFlowLayer(data.flow);
+    if (layerMode === 'flow') {
+      clearIncidents();
+      setFlowVisible(true);
+      notifyStatus('ready', { count: 0, tier: getZoomTier(zoom), mode: 'flow' });
+      if (!force && !significantChange(bounds, zoom)) return;
+      lastState = { center: bounds.getCenter(), zoom };
+      notifyStatus('loading');
+      try {
+        const data = await fetchTraffic(bounds, zoom);
+        if (data.flow) updateFlowLayer(data.flow);
+        notifyStatus('ready', { count: 0, tier: data.tier || getZoomTier(zoom), cached: data.cached, mode: 'flow' });
+      } catch (e) {
+        if (e.status === 403) {
+          setLayerMode('off', { silent: true });
+          showPremiumGate(e.message);
+          notifyStatus('premium');
+        } else {
+          notifyStatus('error', { message: e.message });
+        }
       }
+      return;
+    }
 
-      renderIncidents(data.items || [], bounds);
+    if (layerMode === 'incidents') {
+      setFlowVisible(false);
+      if (!force && !significantChange(bounds, zoom)) return;
 
-      if (onStatusChange) {
-        onStatusChange('ready', {
+      lastState = { center: bounds.getCenter(), zoom };
+      notifyStatus('loading');
+
+      try {
+        const data = await fetchTraffic(bounds, zoom);
+        renderIncidents(data.items || [], bounds);
+        notifyStatus('ready', {
           count: (data.items || []).length,
           tier: data.tier,
-          cached: data.cached
+          cached: data.cached,
+          mode: 'incidents'
         });
+      } catch (e) {
+        if (e.status === 403) {
+          setLayerMode('off', { silent: true });
+          showPremiumGate(e.message);
+          notifyStatus('premium');
+        } else {
+          notifyStatus('error', { message: e.message });
+        }
       }
-    } catch (e) {
-      if (onStatusChange) onStatusChange('error', { message: e.message });
     }
   }
 
@@ -232,9 +276,46 @@ const TomTomTraffic = (() => {
     debounceTimer = setTimeout(() => loadTraffic(false), DEBOUNCE_MS);
   }
 
+  function setLayerMode(mode, options = {}) {
+    const allowed = ['off', 'flow', 'incidents'];
+    const next = allowed.includes(mode) ? mode : 'off';
+
+    if (next !== 'off' && !canUsePremiumLayers()) {
+      if (!options.silent) showPremiumGate();
+      return layerMode;
+    }
+
+    layerMode = next;
+    clearIncidents();
+    setFlowVisible(layerMode === 'flow');
+
+    if (layerMode === 'off') {
+      clientCache.clear();
+      notifyStatus('off');
+    } else {
+      loadTraffic(true);
+    }
+
+    if (onLayerModeChange) onLayerModeChange(layerMode);
+    return layerMode;
+  }
+
+  function getLayerMode() {
+    return layerMode;
+  }
+
+  function refreshSubscriptionState(cfg) {
+    apiConfigured = !!cfg.apiConfigured;
+    subscribed = !!cfg.subscribed;
+    if (!canUsePremiumLayers() && layerMode !== 'off') {
+      setLayerMode('off', { silent: true });
+    }
+  }
+
   function init(leafletMap, options = {}) {
     map = leafletMap;
     onStatusChange = options.onStatusChange || null;
+    onLayerModeChange = options.onLayerModeChange || null;
 
     incidentLines = L.layerGroup().addTo(map);
     incidentMarkers = L.layerGroup().addTo(map);
@@ -259,10 +340,18 @@ const TomTomTraffic = (() => {
     }
 
     return api('traffic/config').then(cfg => {
-      enabled = cfg.enabled;
-      if (!enabled) {
-        if (onStatusChange) onStatusChange('disabled');
-        return false;
+      apiConfigured = !!cfg.apiConfigured;
+      subscribed = !!cfg.subscribed;
+      refreshSubscriptionState(cfg);
+
+      if (!apiConfigured) {
+        notifyStatus('disabled');
+        return { apiConfigured: false, subscribed };
+      }
+
+      if (!cfg.enabled && !subscribed) {
+        notifyStatus('premium');
+        return { apiConfigured: true, subscribed: false };
       }
 
       flowLayer = L.tileLayer(cfg.flowTileUrl || '', {
@@ -274,21 +363,21 @@ const TomTomTraffic = (() => {
         attribution: '&copy; <a href="https://www.tomtom.com">TomTom</a> Traffic'
       });
 
-      flowLayer.addTo(map);
-
       map.on('moveend', scheduleLoad);
       map.on('zoomend', scheduleLoad);
 
       refreshTimer = setInterval(() => {
-        clientCache.clear();
-        loadTraffic(true);
+        if (layerMode !== 'off') {
+          clientCache.clear();
+          loadTraffic(true);
+        }
       }, REFRESH_MS);
 
-      loadTraffic(true);
-      return true;
+      notifyStatus('off');
+      return { apiConfigured: true, subscribed };
     }).catch(() => {
-      if (onStatusChange) onStatusChange('disabled');
-      return false;
+      notifyStatus('disabled');
+      return { apiConfigured: false, subscribed: false };
     });
   }
 
@@ -304,7 +393,17 @@ const TomTomTraffic = (() => {
     if (incidentLines && map) map.removeLayer(incidentLines);
     clientCache.clear();
     lastState = null;
+    layerMode = 'off';
   }
 
-  return { init, destroy, loadTraffic, getZoomTier };
+  return {
+    init,
+    destroy,
+    loadTraffic,
+    setLayerMode,
+    getLayerMode,
+    getZoomTier,
+    canUsePremiumLayers,
+    refreshSubscriptionState
+  };
 })();

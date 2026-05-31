@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Maply — Nova Ocorrência</title>
+  <script src="theme-init.js"></script>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    .form-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:2rem;max-width:700px; }
+    .form-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:2rem; }
     .char-counter { font-size:.73rem;color:var(--text-3);text-align:right;margin-top:2px; }
     .tipo-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:.25rem; }
     .tipo-opt { padding:10px;border-radius:var(--r-sm);border:1px solid var(--border2);background:var(--bg2);cursor:pointer;text-align:center;font-size:.82rem;color:var(--text-2);transition:all .2s;user-select:none; }
@@ -91,6 +93,7 @@
         <a href="ocorrencias.html" class="btn btn-secondary">← Voltar</a>
       </div>
 
+      <div class="nova-layout" id="nova-layout">
       <!-- FORM -->
       <div class="form-card" id="form-wrap">
         <div id="quota-banner" class="quota-banner" style="display:none"></div>
@@ -176,6 +179,13 @@
         </div>
       </div>
 
+      <aside class="nova-map-panel" id="nova-map-panel">
+        <div class="nova-map-panel-header"><i class="fa-solid fa-location-dot"></i> Preview da localização</div>
+        <div id="nova-map-preview" class="nova-map-preview"></div>
+        <div class="nova-map-hint" id="nova-map-hint">Informe o CEP ou selecione um endereço para ver o ponto no mapa.</div>
+      </aside>
+      </div>
+
       <!-- SUCCESS SCREEN -->
       <div class="form-card success-screen" id="success-screen">
         <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
@@ -192,7 +202,9 @@
     </main>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
+  <script src="map-preview.js"></script>
   <script>
     let selectedTipo = '';
     let selectedSev = 'media';
@@ -247,6 +259,9 @@
         $('#sidebar').classList.remove('open');
         $('#sidebar-overlay').classList.remove('open');
       });
+
+      MapPreview.init('nova-map-preview');
+      window.addEventListener('resize', () => MapPreview.invalidate());
     });
 
     function doSubmit() {
@@ -404,6 +419,21 @@
 
       if (!selectedAddress.lat && addressLabel(data).length >= 5) {
         geocodeSelectedAddress(addressLabel(data));
+      } else {
+        updateNovaMapPreview();
+      }
+    }
+
+    function updateNovaMapPreview() {
+      const hint = $('#nova-map-hint');
+      if (!selectedAddress?.lat || !selectedAddress?.lon) {
+        MapPreview.clearMarker();
+        if (hint) hint.textContent = 'Informe o CEP ou selecione um endereço para ver o ponto no mapa.';
+        return;
+      }
+      MapPreview.setPosition(selectedAddress.lat, selectedAddress.lon, { fly: true });
+      if (hint) {
+        hint.textContent = addressLabel(selectedAddress) || 'Localização confirmada no mapa.';
       }
     }
 
@@ -413,6 +443,7 @@
         if (items.length && items[0].lat && items[0].lon) {
           selectedAddress.lat = parseFloat(items[0].lat);
           selectedAddress.lon = parseFloat(items[0].lon);
+          updateNovaMapPreview();
         }
       } catch (e) { /* servidor geocodifica no POST */ }
     }
@@ -426,6 +457,8 @@
         lookupOccurrenceCep();
       } else {
         setAddressStatus('');
+        MapPreview.clearMarker();
+        if ($('#nova-map-hint')) $('#nova-map-hint').textContent = 'Informe o CEP ou selecione um endereço para ver o ponto no mapa.';
       }
     }
 
@@ -584,6 +617,8 @@
       $('#address-results-main').classList.remove('show');
       $('#address-results-main').innerHTML = '';
       setAddressStatus('');
+      MapPreview.clearMarker();
+      if ($('#nova-map-hint')) $('#nova-map-hint').textContent = 'Informe o CEP ou selecione um endereço para ver o ponto no mapa.';
       $('#f-local').value = '';
       $('#f-desc').value = '';
       $('#char-count').textContent = '0';

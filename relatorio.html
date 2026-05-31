@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply — Relatório Premium</title>
+  <script src="theme-init.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .report-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .report-toolbar .form-group { min-width: 200px; }
+    .indicators-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .indicator-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 110px;
+    }
+    .indicator-card .ind-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--r-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+    }
+    .indicator-card .ind-value {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      line-height: 1;
+      color: var(--text);
+    }
+    .indicator-card .ind-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-2);
+    }
+    .indicator-card .ind-hint {
+      font-size: 0.68rem;
+      color: var(--text-3);
+      line-height: 1.35;
+    }
+    .ind-tone-acid .ind-icon { background: var(--acid-dim); color: var(--acid); }
+    .ind-tone-red .ind-icon { background: var(--red-dim); color: var(--red); }
+    .ind-tone-orange .ind-icon { background: var(--orange-dim); color: var(--orange); }
+    .ind-tone-green .ind-icon { background: var(--green-dim); color: var(--green); }
+    .danger-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .danger-row {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 1rem;
+      align-items: start;
+      padding: 1rem 1.1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      transition: border-color 0.2s;
+    }
+    .danger-row:hover { border-color: var(--border2); }
+    .danger-rank {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      color: var(--acid);
+      line-height: 1;
+      padding-top: 2px;
+    }
+    .danger-meta { font-size: 0.82rem; color: var(--text-2); margin-top: 4px; }
+    .danger-graves {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .danger-graves-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+    .danger-grave-item {
+      font-size: 0.78rem;
+      color: var(--text-2);
+      padding: 4px 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .risco-pill {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .risco-critico { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,59,92,0.25); }
+    .risco-alto { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(255,107,43,0.25); }
+    .risco-moderado { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(59,130,246,0.2); }
+    .risco-baixo { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+    .danger-score {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-3);
+    }
+    .danger-score strong {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      color: var(--red);
+    }
+    .premium-banner-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 99px;
+      background: var(--acid-dim);
+      border: 1px solid rgba(212,255,0,0.25);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--acid);
+      margin-bottom: 0.5rem;
+    }
+    @media (max-width: 700px) {
+      .danger-row { grid-template-columns: 28px 1fr; }
+      .danger-score { grid-column: 2; text-align: left; margin-top: 6px; }
+    }
+  </style>
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <nav class="nav">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <button class="btn-icon" id="sidebar-toggle" type="button" aria-label="Menu"><i class="fa-solid fa-bars"></i></button>
+      <a href="index.html" class="nav-logo"><div class="dot"></div>MAPLY</a>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocorrencias.html">Ocorrências</a>
+      <a href="mapa.html">Mapa</a>
+      <a href="nova.html">+ Nova</a>
+    </div>
+    <div class="nav-end">
+      <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
+      <button class="nav-mobile-btn" id="nav-mobile-btn" type="button" aria-label="Menu"><i class="fa-solid fa-bars"></i></button>
+    </div>
+  </nav>
+  <div class="nav-drawer" id="nav-drawer">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="ocorrencias.html">Ocorrências</a>
+    <a href="mapa.html">Mapa</a>
+    <a href="nova.html">+ Nova Ocorrência</a>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">Menu</div>
+      <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-chart-simple"></i></span><span class="sidebar-label">Dashboard</span></a>
+      <a href="ocorrencias.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="sidebar-label">Ocorrências</span></a>
+      <a href="mapa.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-map"></i></span><span class="sidebar-label">Mapa</span></a>
+      <a href="nova.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-plus"></i></span><span class="sidebar-label">Nova Ocorrência</span></a>
+      <div class="sidebar-section">Conta</div>
+      <a href="#" class="sidebar-item" onclick="logout()"><span class="sidebar-icon"><i class="fa-solid fa-door-open"></i></span><span class="sidebar-label">Sair</span></a>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <span class="premium-banner-inline"><i class="fa-solid fa-crown"></i> Premium</span>
+          <h1 class="page-title">RELATÓRIO POR ESTADO</h1>
+          <p class="page-sub" id="report-sub">Análise detalhada de risco e status das ocorrências.</p>
+        </div>
+        <a href="dashboard.html" class="btn btn-secondary">← Dashboard</a>
+      </div>
+
+      <div class="report-toolbar card" style="padding:1.25rem">
+        <div class="form-group" style="margin:0">
+          <label class="form-label" for="uf-select">ESTADO (UF)</label>
+          <select class="form-input form-select" id="uf-select"></select>
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-refresh-report">
+          <i class="fa-solid fa-arrows-rotate"></i> Atualizar
+        </button>
+      </div>
+
+      <section class="mb-6">
+        <h2 style="font-family:var(--font-display);font-size:1.25rem;margin-bottom:1rem">10 INDICADORES DO ESTADO</h2>
+        <div class="indicators-grid" id="indicators-grid">
+          <div class="empty-state" style="grid-column:1/-1"><div class="empty-desc">Carregando indicadores…</div></div>
+        </div>
+      </section>
+
+      <section>
+        <h2 style="font-family:var(--font-display);font-size:1.25rem;margin-bottom:.35rem">TOP 10 LOCAIS MAIS PERIGOSOS</h2>
+        <p style="font-size:.85rem;color:var(--text-3);margin-bottom:1rem" id="danger-intro">
+          Ranking por score de risco (ocorrências graves, abertas e em análise próximas).
+        </p>
+        <div class="danger-list" id="danger-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="premium-report-client.js"></script>
+  <script src="app.js"></script>
+  <script>
+    let currentUf = 'SC';
+    let reportLoading = false;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      await refreshUser().catch(() => {});
+      if (!requireSubscription(false)) {
+        showToast('Relatório exclusivo para assinantes Premium.', 'info');
+        setTimeout(() => { location.href = 'assinatura.html'; }, 700);
+        return;
+      }
+
+      $('#sidebar-toggle')?.addEventListener('click', () => {
+        $('#sidebar')?.classList.toggle('open');
+        $('#sidebar-overlay')?.classList.toggle('open');
+      });
+      $('#sidebar-overlay')?.addEventListener('click', () => {
+        $('#sidebar')?.classList.remove('open');
+        $('#sidebar-overlay')?.classList.remove('open');
+      });
+
+      $('#uf-select')?.addEventListener('change', () => {
+        const v = $('#uf-select')?.value;
+        if (v) loadReport(v);
+      });
+      $('#btn-refresh-report')?.addEventListener('click', () => {
+        loadReport($('#uf-select')?.value || currentUf);
+      });
+
+      renderUfSelectFallback('SC');
+      await loadReport('SC');
+    });
+
+    function setReportLoading(loading) {
+      reportLoading = loading;
+      const btn = $('#btn-refresh-report');
+      if (btn) btn.disabled = loading;
+      if (loading) {
+        $('#indicators-grid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-desc">Carregando indicadores…</div></div>';
+        $('#danger-list').innerHTML = '<div class="empty-state"><div class="empty-desc">Carregando ranking…</div></div>';
+      }
+    }
+
+    async function loadReport(uf) {
+      if (reportLoading) return;
+      const ufParam = String(uf || currentUf || 'SC').trim().toUpperCase();
+      setReportLoading(true);
+
+      try {
+        const data = await fetchPremiumReport(ufParam);
+        if (!data || !Array.isArray(data.estados) || !data.estados.length) {
+          throw new Error('Resposta inválida. Reinicie o servidor com npm start.');
+        }
+
+        currentUf = data.uf || ufParam;
+        renderUfSelect(data.estados, currentUf);
+        $('#report-sub').textContent = `${data.estadoNome} (${data.uf}) — ${data.resumo?.total ?? 0} ocorrências monitoradas.`;
+        renderIndicators(data.indicadores || []);
+        renderDangerList(data.topPerigosos || [], data.estadoNome);
+      } catch (e) {
+        if (e.status === 403) {
+          showToast(e.message || 'Recurso Premium.', 'error');
+          setTimeout(() => { location.href = 'assinatura.html'; }, 900);
+          return;
+        }
+        const msg = e.message || 'Erro ao carregar relatório.';
+        showToast(msg, 'error');
+        $('#indicators-grid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-title">Falha ao carregar</div><div class="empty-desc">${msg}<br><br>Acesse via <strong>http://localhost:3000/relatorio.html</strong> e reinicie o servidor (<code>npm start</code>).</div></div>`;
+        $('#danger-list').innerHTML = '';
+        renderUfSelectFallback(ufParam);
+      } finally {
+        reportLoading = false;
+        const btn = $('#btn-refresh-report');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function renderUfSelect(estados, selected) {
+      const sel = $('#uf-select');
+      if (!sel) return;
+      sel.innerHTML = estados.map(e => {
+        const extra = e.comDados === false ? ' — sem dados' : '';
+        return `<option value="${e.uf}" ${e.uf === selected ? 'selected' : ''}>${e.nome} (${e.uf})${extra}</option>`;
+      }).join('');
+      sel.value = selected || estados[0]?.uf || 'SC';
+    }
+
+    function renderUfSelectFallback(selected) {
+      const sel = $('#uf-select');
+      if (!sel || typeof UF_NAMES === 'undefined') return;
+      const keys = Object.keys(UF_NAMES).sort((a, b) => UF_NAMES[a].localeCompare(UF_NAMES[b], 'pt-BR'));
+      sel.innerHTML = keys.map(uf =>
+        `<option value="${uf}" ${uf === selected ? 'selected' : ''}>${UF_NAMES[uf]} (${uf})</option>`
+      ).join('');
+      if (selected) sel.value = selected;
+    }
+
+    function renderIndicators(items) {
+      const grid = $('#indicators-grid');
+      if (!grid) return;
+      if (!items.length) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-desc">Nenhum indicador para este estado.</div></div>';
+        return;
+      }
+      grid.innerHTML = items.map(ind => `
+        <div class="indicator-card ind-tone-${ind.tone}">
+          <div class="ind-icon"><i class="fa-solid ${ind.icon}"></i></div>
+          <div class="ind-value">${ind.value}</div>
+          <div class="ind-label">${ind.label}</div>
+          <div class="ind-hint">${ind.hint}</div>
+        </div>
+      `).join('');
+    }
+
+    function riscoClass(risco) {
+      return `risco-pill risco-${risco}`;
+    }
+
+    function renderDangerList(places, estadoNome) {
+      const list = $('#danger-list');
+      if (!list) return;
+
+      if (!places.length) {
+        list.innerHTML = `<div class="empty-state"><div class="empty-title">Sem dados</div><div class="empty-desc">Não há ocorrências suficientes em ${estadoNome} para o ranking.</div></div>`;
+        return;
+      }
+
+      list.innerHTML = places.map(p => {
+        const gravesHtml = p.ocorrenciasGraves.length
+          ? `<div class="danger-graves">
+              <div class="danger-graves-title">Ocorrências graves próximas</div>
+              ${p.ocorrenciasGraves.map(g => `
+                <div class="danger-grave-item">
+                  <strong>${g.tipo}</strong>
+                  ${severidadeBadgeHtml(g.severidade)}
+                  ${badgeHtml(g.status)}
+                  <span style="color:var(--text-3)">${g.local}</span>
+                </div>
+              `).join('')}
+            </div>`
+          : '<div class="danger-meta">Nenhuma ocorrência grave listada neste cluster.</div>';
+
+        return `
+          <article class="danger-row">
+            <div class="danger-rank">#${p.rank}</div>
+            <div>
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                <strong style="font-size:.95rem;color:var(--text)">${p.bairro}</strong>
+                <span class="${riscoClass(p.risco)}">${p.risco}</span>
+              </div>
+              <div class="danger-meta">${p.cidade} — ${p.uf} · ${p.total} ocorrência${p.total !== 1 ? 's' : ''} · ${p.graves} grave${p.graves !== 1 ? 's' : ''} · ${p.pendentesGraves} pendente${p.pendentesGraves !== 1 ? 's' : ''}</div>
+              <div class="danger-meta" style="margin-top:6px">
+                <span style="color:var(--red)">${p.aberto} abertas</span> ·
+                <span style="color:var(--orange)">${p.analise} em análise</span> ·
+                <span style="color:var(--green)">${p.resolvido} resolvidas</span>
+              </div>
+              ${gravesHtml}
+            </div>
+            <div class="danger-score">
+              <strong>${p.dangerScore}</strong>
+              score de risco
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

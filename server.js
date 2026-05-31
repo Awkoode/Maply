@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const { getTrafficForViewport, getFlowTileUrl, isEnabled: tomtomEnabled } = require('./lib/tomtom-traffic');
+const { ensureSampleOcorrencias } = require('./lib/seed-florianopolis');
+const { buildPremiumReport } = require('./lib/premium-report');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -417,6 +419,29 @@ app.post('/api/subscription/pay', authMiddleware, async (req, res) => {
   res.json({ success: true, user: sanitizeUser(result.rows[0]) });
 });
 
+function requirePremiumMiddleware(req, res, next) {
+  if (!userHasActiveSubscription(req.user)) {
+    return res.status(403).json({
+      error: 'Relatório detalhado exclusivo para assinantes Premium.',
+      code: 'PREMIUM_REQUIRED'
+    });
+  }
+  next();
+}
+
+app.get('/api/reports/premium', authMiddleware, requirePremiumMiddleware, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT ${OC_FIELDS} FROM ocorrencias ORDER BY data DESC`
+    );
+    const report = buildPremiumReport(result.rows, req.query.uf);
+    res.json(report);
+  } catch (error) {
+    console.error('Premium report error:', error.message);
+    res.status(500).json({ error: 'Falha ao gerar relatório Premium' });
+  }
+});
+
 app.get('/api/ocorrencias/quota', authMiddleware, async (req, res) => {
   const subscribed = userHasActiveSubscription(req.user);
   const quota = await getOccurrenceQuota(req.user.id, subscribed);
@@ -440,7 +465,7 @@ app.get('/api/ocorrencias/map', optionalAuthMiddleware, async (req, res) => {
     sql += ` AND COALESCE(severidade, 'media') IN ('media', 'alta')`;
   }
 
-  sql += ' ORDER BY data DESC LIMIT 80';
+  sql += ' ORDER BY data DESC LIMIT 120';
 
   const result = await query(sql);
   const items = [];
@@ -658,15 +683,36 @@ app.get('/api/enderecos/search', async (req, res) => {
   }
 });
 
-app.get('/api/traffic/config', (req, res) => {
-  const enabled = tomtomEnabled();
+function trafficPremiumDenied(res) {
+  return res.status(403).json({
+    error: 'Recurso exclusivo para assinantes Premium. Assine para acessar trânsito e incidentes em tempo real.',
+    code: 'PREMIUM_REQUIRED'
+  });
+}
+
+app.get('/api/traffic/config', optionalAuthMiddleware, (req, res) => {
+  const apiConfigured = tomtomEnabled();
+  const subscribed = req.user && userHasActiveSubscription(req.user);
+  const accessible = apiConfigured && subscribed;
+
   res.json({
-    enabled,
-    flowTileUrl: enabled ? getFlowTileUrl('relative0-dark', 4) : null
+    enabled: accessible,
+    apiConfigured,
+    subscribed: !!subscribed,
+    premiumRequired: true,
+    flowTileUrl: accessible ? getFlowTileUrl('relative0-dark', 4) : null
   });
 });
 
-app.get('/api/traffic/viewport', async (req, res) => {
+app.get('/api/traffic/viewport', optionalAuthMiddleware, async (req, res) => {
+  if (!tomtomEnabled()) {
+    return res.json({ enabled: false, items: [], tier: 'low', flow: null });
+  }
+
+  if (!req.user || !userHasActiveSubscription(req.user)) {
+    return trafficPremiumDenied(res);
+  }
+
   const { minLon, minLat, maxLon, maxLat, zoom } = req.query;
   if ([minLon, minLat, maxLon, maxLat, zoom].some(v => v === undefined || v === '')) {
     return res.status(400).json({ error: 'Parâmetros bbox e zoom obrigatórios' });
@@ -683,13 +729,27 @@ app.get('/api/traffic/viewport', async (req, res) => {
   }
 });
 
+app.use('/api', (req, res, next) => {
+  if (res.headersSent) return next();
+  res.status(404).json({ error: `Rota não encontrada: ${req.method} ${req.originalUrl}` });
+});
+
 app.use(express.static(path.join(__dirname, '.')));
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Servidor iniciado em http://localhost:${PORT}`);
+  console.log('Relatório Premium: GET /api/reports/premium');
   if (tomtomEnabled()) {
-    console.log('TomTom Traffic API: ativa');
+    console.log('TomTom Traffic API: ativa (acesso Premium no app)');
   } else {
     console.warn('TomTom Traffic API: desativada (defina TOMTOM_API_KEY no .env)');
+  }
+  try {
+    const seed = await ensureSampleOcorrencias(query, bcrypt);
+    if (seed.inserted > 0) {
+      console.log(`Ocorrências de exemplo (Florianópolis): ${seed.inserted} inseridas`);
+    }
+  } catch (err) {
+    console.warn('Seed Florianópolis:', err.message);
   }
 });

@@ -3,6 +3,145 @@
    Shared logic, auth and API helpers
    ============================================ */
 
+// ─── THEME ───────────────────────────────────
+const Theme = {
+  get current() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  },
+  _listeners: [],
+  onChange(fn) {
+    if (typeof fn === 'function') this._listeners.push(fn);
+  },
+  _emit() {
+    this._listeners.forEach(fn => { try { fn(this.current); } catch (e) { /* ignore */ } });
+  },
+  apply(theme) {
+    const t = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('maply_theme', t); } catch (e) { /* ignore */ }
+    this._syncThemeSwitch();
+    this._emit();
+  },
+  toggle() {
+    this.apply(this.current === 'dark' ? 'light' : 'dark');
+  },
+  _syncThemeSwitch() {
+    const isLight = this.current === 'light';
+    $$('.theme-switch').forEach(wrap => {
+      wrap.classList.toggle('is-light', isLight);
+      const input = wrap.querySelector('.theme-switch-input');
+      if (input) {
+        input.checked = isLight;
+        input.setAttribute('aria-label', isLight ? 'Desativar tema claro' : 'Ativar tema claro');
+      }
+    });
+  }
+};
+
+const MapTiles = {
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  },
+  light: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  },
+  getLayerOptions() {
+    const cfg = Theme.current === 'light' ? this.light : this.dark;
+    return { url: cfg.url, attribution: cfg.attribution, subdomains: 'abcd', maxZoom: 20 };
+  },
+  leafletBgColor() {
+    return Theme.current === 'light' ? '#e8e8ef' : '#0a0a0f';
+  }
+};
+
+function createThemeSwitch() {
+  const wrap = document.createElement('label');
+  wrap.className = 'theme-switch';
+  wrap.title = 'Alternar tema claro / escuro';
+  wrap.innerHTML = `
+    <span class="theme-switch-icon theme-switch-icon-sun" aria-hidden="true"><i class="fa-solid fa-sun"></i></span>
+    <span class="theme-switch-track">
+      <input type="checkbox" class="theme-switch-input" role="switch">
+      <span class="theme-switch-thumb" aria-hidden="true"></span>
+    </span>
+    <span class="theme-switch-icon theme-switch-icon-moon" aria-hidden="true"><i class="fa-solid fa-moon"></i></span>
+  `;
+  const input = wrap.querySelector('.theme-switch-input');
+  input.addEventListener('change', () => {
+    Theme.apply(input.checked ? 'light' : 'dark');
+  });
+  return wrap;
+}
+
+function ensureNavEnd(nav) {
+  let end = nav.querySelector('.nav-end');
+  if (!end) {
+    end = document.createElement('div');
+    end.className = 'nav-end';
+    const toMove = [...nav.children].filter(el =>
+      el.classList.contains('nav-cta') ||
+      el.id === 'nav-user' ||
+      el.classList.contains('nav-mobile-btn')
+    );
+    if (toMove.length) {
+      nav.insertBefore(end, toMove[0]);
+      toMove.forEach(el => end.appendChild(el));
+    } else {
+      nav.appendChild(end);
+    }
+  }
+
+  nav.querySelectorAll(':scope > .theme-switch').forEach(sw => {
+    end.insertBefore(sw, end.firstChild);
+  });
+
+  const cta = end.querySelector('.nav-cta');
+  if (cta) {
+    cta.querySelectorAll('.theme-switch').forEach(sw => {
+      end.insertBefore(sw, cta);
+    });
+  }
+
+  return end;
+}
+
+function initThemeToggle() {
+  document.querySelectorAll('.nav').forEach(nav => {
+    const end = ensureNavEnd(nav);
+    if (!end.querySelector('.theme-switch')) {
+      end.insertBefore(createThemeSwitch(), end.firstChild);
+    }
+  });
+  Theme._syncThemeSwitch();
+  Theme.onChange(() => {
+    document.querySelectorAll('.leaflet-container').forEach(el => {
+      el.style.background = MapTiles.leafletBgColor();
+    });
+  });
+}
+
+function showPremiumGate(message) {
+  const msg = message || 'Trânsito e incidentes TomTom são exclusivos para assinantes Premium.';
+  showToast(msg, 'info', 4500);
+  if (Auth.loggedIn && !isSubscribed()) {
+    setTimeout(() => {
+      if (!location.pathname.endsWith('assinatura.html')) {
+        if (confirm(`${msg}\n\nDeseja ver os planos de assinatura?`)) {
+          location.href = 'assinatura.html';
+        }
+      }
+    }, 500);
+  } else if (!Auth.loggedIn) {
+    setTimeout(() => {
+      if (!location.pathname.endsWith('login.html') && confirm(`${msg}\n\nDeseja entrar ou criar conta?`)) {
+        location.href = 'login.html';
+      }
+    }, 500);
+  }
+}
+
 // ─── HELPERS ─────────────────────────────────
 const $ = (sel, ctx=document) => ctx.querySelector(sel);
 const $$ = (sel, ctx=document) => [...ctx.querySelectorAll(sel)];
@@ -42,6 +181,47 @@ async function fetchMapOcorrencias() {
 
 async function fetchOccurrenceQuota() {
   return api('ocorrencias/quota');
+}
+
+async function fetchPremiumReport(uf) {
+  const q = uf ? `?uf=${encodeURIComponent(uf)}` : '';
+  try {
+    return await api(`reports/premium${q}`);
+  } catch (err) {
+    if (err.status === 403) throw err;
+    if (typeof buildPremiumReport === 'function') {
+      const rows = await fetchOcorrencias();
+      return buildPremiumReport(rows, uf || 'SC');
+    }
+    throw err;
+  }
+}
+
+function renderPremiumSidebar() {
+  const premium = isSubscribed();
+  document.querySelectorAll('.sidebar').forEach(sidebar => {
+    sidebar.querySelectorAll('.sidebar-premium-block').forEach(el => el.remove());
+    if (!premium) return;
+
+    const contaSection = [...sidebar.querySelectorAll('.sidebar-section')].find(
+      s => s.textContent.trim().toLowerCase() === 'conta'
+    );
+    const page = location.pathname.split('/').pop() || '';
+    const active = page === 'relatorio.html' ? ' active' : '';
+
+    const block = document.createElement('div');
+    block.className = 'sidebar-premium-block';
+    block.innerHTML = `
+      <div class="sidebar-section sidebar-section-premium">Premium</div>
+      <a href="relatorio.html" class="sidebar-item sidebar-item-premium${active}" data-sidebar="relatorio">
+        <span class="sidebar-icon"><i class="fa-solid fa-chart-pie"></i></span>
+        <span class="sidebar-label">Relatório por estado</span>
+        <span class="sidebar-badge">PRO</span>
+      </a>
+    `;
+    if (contaSection) sidebar.insertBefore(block, contaSection);
+    else sidebar.appendChild(block);
+  });
 }
 
 function formatCountdown(ms) {
@@ -95,7 +275,8 @@ function setActiveNav() {
   const page = location.pathname.split('/').pop() || 'index.html';
   $$('.nav-links a, .nav-drawer a, .sidebar-item').forEach(a => {
     const href = a.getAttribute('href') || '';
-    if (href && page.includes(href.replace('.html',''))) a.classList.add('active');
+    const target = href.split('/').pop().split('?')[0];
+    if (target && page === target) a.classList.add('active');
     else a.classList.remove('active');
   });
 }
@@ -130,12 +311,24 @@ const Auth = {
   logout() { this.token = null; this.user = null; }
 };
 
+function apiUrl(path) {
+  const p = path.startsWith('/api/') ? path : `/api/${path.replace(/^\//, '')}`;
+  if (location.protocol === 'file:') return `http://localhost:3000${p}`;
+  return p;
+}
+
 async function api(path, options = {}) {
-  const url = path.startsWith('/api/') ? path : `/api/${path.replace(/^\//,'')}`;
+  const url = apiUrl(path);
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (Auth.token) headers.Authorization = `Bearer ${Auth.token}`;
   const res = await fetch(url, { ...options, headers });
-  const data = await res.json().catch(() => null);
+  const raw = await res.text();
+  let data = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = { error: raw && raw.startsWith('<') ? `Erro ${res.status}` : (raw || `Erro ${res.status}`).slice(0, 200) };
+  }
   if (!res.ok) {
     if (res.status === 401) {
       Auth.logout();
@@ -170,7 +363,7 @@ function isSubscribed(user) {
 
 function requireSubscription(redirect = true) {
   if (!requireAuth()) return false;
-  if (isSubscribed()) return true;
+  if (isSubscribed(Auth.user)) return true;
   if (redirect) location.href = 'assinatura.html';
   return false;
 }
@@ -179,6 +372,7 @@ async function refreshUser() {
   const data = await api('auth/me');
   Auth.user = data.user;
   renderUserNav();
+  renderPremiumSidebar();
   return data.user;
 }
 
@@ -268,8 +462,10 @@ function confirmDelete(id, cb) {
 // ─── BOOTSTRAP ───────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   clearLegacyStorage();
+  initThemeToggle();
   setActiveNav();
   initMobileNav();
   renderUserNav();
+  renderPremiumSidebar();
   if (Auth.loggedIn) refreshUser().catch(() => {});
 });

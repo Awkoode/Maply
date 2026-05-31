@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Maply — Mapa</title>
+  <script src="theme-init.js"></script>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
@@ -19,7 +20,7 @@
       left: 0;
       right: 0;
       z-index: 1000;
-      background: rgba(10, 10, 15, 0.82);
+      background: color-mix(in srgb, var(--bg) 82%, transparent);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -135,7 +136,7 @@
     .tt-incident-icon, .tt-cluster { background: transparent !important; border: 0 !important; }
     /* Leaflet dark overrides */
     .leaflet-container {
-      background: #0a0a0f;
+      background: var(--bg);
       font-family: var(--font-body);
     }
     .leaflet-bar {
@@ -203,9 +204,11 @@
       <a href="ocorrencias.html">Ocorrências</a>
       <a href="mapa.html" class="active">Mapa</a>
     </div>
-    <a href="login.html" class="nav-cta" id="nav-cta">Acessar Sistema →</a>
-    <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
-    <button class="nav-mobile-btn" id="nav-mobile-btn"><i class="fa-solid fa-bars"></i></button>
+    <div class="nav-end">
+      <a href="login.html" class="nav-cta" id="nav-cta">Acessar Sistema →</a>
+      <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
+      <button class="nav-mobile-btn" id="nav-mobile-btn" type="button" aria-label="Menu"><i class="fa-solid fa-bars"></i></button>
+    </div>
   </nav>
   <div class="nav-drawer" id="nav-drawer">
     <a href="index.html">Início</a>
@@ -224,11 +227,17 @@
   </div>
 
   <div class="map-overlay traffic-status" id="traffic-status">
-    Trânsito
-    <div id="traffic-status-text">inicializando…</div>
-    <button type="button" class="traffic-toggle" id="traffic-refresh" title="Atualizar trânsito">
+    Camadas TomTom
+    <div id="traffic-status-text">selecione uma camada</div>
+    <button type="button" class="traffic-toggle" id="traffic-refresh" title="Atualizar camada">
       <i class="fa-solid fa-arrows-rotate"></i> Atualizar
     </button>
+  </div>
+
+  <div class="map-layer-control map-overlay" id="map-layer-control" role="group" aria-label="Camadas do mapa">
+    <button type="button" class="map-layer-btn active" data-mode="off">Mapa normal</button>
+    <button type="button" class="map-layer-btn" data-mode="flow">Trânsito</button>
+    <button type="button" class="map-layer-btn" data-mode="incidents">Incidentes</button>
   </div>
 
   <div class="map-overlay map-legend" id="map-legend">
@@ -256,6 +265,39 @@
   <script>
     const sevColors = { baixa: '#2ecc71', media: '#f5a623', alta: '#e84959' };
     let mapInstance = null;
+    let baseTileLayer = null;
+    let trafficPremium = false;
+
+    function syncLayerButtons(mode) {
+      $$('#map-layer-control .map-layer-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+    }
+
+    function updateLayerButtonLocks() {
+      const locked = !trafficPremium;
+      $$('#map-layer-control .map-layer-btn').forEach(btn => {
+        if (btn.dataset.mode === 'off') {
+          btn.classList.remove('locked');
+          btn.title = '';
+        } else {
+          btn.classList.toggle('locked', locked);
+          btn.title = locked ? 'Exclusivo para assinantes Premium' : '';
+        }
+      });
+    }
+
+    async function refreshTrafficAccess() {
+      try {
+        const cfg = await api('traffic/config');
+        trafficPremium = !!(cfg.subscribed && cfg.apiConfigured);
+        TomTomTraffic.refreshSubscriptionState(cfg);
+        updateLayerButtonLocks();
+      } catch (e) {
+        trafficPremium = false;
+        updateLayerButtonLocks();
+      }
+    }
 
     function setTrafficStatus(state, meta = {}) {
       const el = $('#traffic-status-text');
@@ -263,12 +305,24 @@
       if (!el) return;
 
       if (state === 'disabled') {
-        el.innerHTML = '<span style="color:var(--orange)">API key não configurada</span>';
+        el.innerHTML = '<span style="color:var(--orange)">TomTom não configurada</span>';
         if (hint) hint.textContent = 'Adicione TOMTOM_API_KEY no .env';
         return;
       }
+      if (state === 'premium') {
+        el.innerHTML = '<span style="color:var(--orange)">Recurso Premium</span>';
+        if (hint) hint.textContent = 'Assine para trânsito e incidentes em tempo real.';
+        return;
+      }
+      if (state === 'off') {
+        el.textContent = 'mapa normal — ocorrências Maply';
+        if (hint) hint.textContent = trafficPremium
+          ? 'Use os botões abaixo para camadas TomTom.'
+          : 'Trânsito e incidentes são exclusivos para assinantes.';
+        return;
+      }
       if (state === 'loading') {
-        el.textContent = 'carregando viewport…';
+        el.textContent = meta.mode === 'flow' ? 'carregando fluxo…' : 'carregando incidentes…';
         return;
       }
       if (state === 'error') {
@@ -277,11 +331,31 @@
       }
       if (state === 'ready') {
         const tierLabel = { low: 'região', medium: 'cidade', high: 'rua' }[meta.tier] || meta.tier;
-        el.textContent = `${meta.count} incidente${meta.count !== 1 ? 's' : ''}${meta.cached ? ' (cache)' : ''}`;
-        if (hint) {
-          hint.textContent = `Zoom ${tierLabel}: filtros otimizados para performance. Atualiza a cada 60s.`;
+        if (meta.mode === 'flow') {
+          el.textContent = `fluxo ao vivo${meta.cached ? ' (cache)' : ''}`;
+          if (hint) hint.textContent = `Zoom ${tierLabel}. Atualiza a cada 60s.`;
+        } else {
+          el.textContent = `${meta.count} incidente${meta.count !== 1 ? 's' : ''}${meta.cached ? ' (cache)' : ''}`;
+          if (hint) hint.textContent = `Zoom ${tierLabel}: faixas e bloqueios. Atualiza a cada 60s.`;
         }
       }
+    }
+
+    function applyMapThemeTiles() {
+      if (!baseTileLayer) return;
+      const cfg = MapTiles.getLayerOptions();
+      baseTileLayer.setUrl(cfg.url);
+      const container = mapInstance?.getContainer();
+      if (container) container.style.background = MapTiles.leafletBgColor();
+    }
+
+    function onLayerButtonClick(mode) {
+      if (mode !== 'off' && !TomTomTraffic.canUsePremiumLayers()) {
+        showPremiumGate();
+        return;
+      }
+      TomTomTraffic.setLayerMode(mode);
+      syncLayerButtons(mode);
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -289,25 +363,43 @@
         $('#nav-cta')?.remove();
         await refreshUser().catch(() => {});
       }
+      await refreshTrafficAccess();
 
       const map = L.map('map', {
         zoomControl: false
-      }).setView([-23.5505, -46.6333], 12);
+      }).setView([-27.5954, -48.5480], 12);
       mapInstance = map;
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 20
+      const tileCfg = MapTiles.getLayerOptions();
+      baseTileLayer = L.tileLayer(tileCfg.url, {
+        attribution: tileCfg.attribution,
+        subdomains: tileCfg.subdomains,
+        maxZoom: tileCfg.maxZoom
       }).addTo(map);
+      applyMapThemeTiles();
+      Theme.onChange(applyMapThemeTiles);
 
       map.invalidateSize();
 
-      TomTomTraffic.init(map, { onStatusChange: setTrafficStatus });
+      await TomTomTraffic.init(map, {
+        onStatusChange: setTrafficStatus,
+        onLayerModeChange: syncLayerButtons
+      });
+
+      syncLayerButtons('off');
+      setTrafficStatus('off');
+
+      $$('#map-layer-control .map-layer-btn').forEach(btn => {
+        btn.addEventListener('click', () => onLayerButtonClick(btn.dataset.mode));
+      });
 
       $('#traffic-refresh')?.addEventListener('click', () => {
+        if (TomTomTraffic.getLayerMode() === 'off') {
+          showToast('Selecione Trânsito ou Incidentes para atualizar.', 'info');
+          return;
+        }
         TomTomTraffic.loadTraffic(true);
       });
 
