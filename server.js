@@ -736,8 +736,8 @@ app.use('/api', (req, res, next) => {
 
 app.use(express.static(path.join(__dirname, '.')));
 
-app.listen(PORT, async () => {
-  console.log(`Servidor iniciado em http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`Servidor iniciado em http://0.0.0.0:${PORT}`);
   console.log('Relatório Premium: GET /api/reports/premium');
   if (tomtomEnabled()) {
     console.log('TomTom Traffic API: ativa (acesso Premium no app)');
