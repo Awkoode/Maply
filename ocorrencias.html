@@ -119,10 +119,19 @@
     let currentSort = 'new';
     let currentSearch = '';
     let viewMode = 'grid';
+    let allOcorrencias = [];
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       if (!requireAuth()) return;
-      renderList();
+
+      try {
+        allOcorrencias = await fetchOcorrencias();
+        renderList();
+      } catch (e) {
+        $('#oc-count-label').textContent = 'Erro ao carregar';
+        showToast(e.message || 'Erro ao carregar ocorrências.', 'error');
+        return;
+      }
 
       // Filter chips
       $$('.filter-chip').forEach(btn => {
@@ -176,13 +185,13 @@
     });
 
     function getFiltered() {
-      let ocs = DB.ocorrencias;
-      if (currentFilter !== 'all') ocs = ocs.filter(o=>o.status===currentFilter);
-      if (currentSearch) ocs = ocs.filter(o=>
+      let ocs = allOcorrencias;
+      if (currentFilter !== 'all') ocs = ocs.filter(o => o.status === currentFilter);
+      if (currentSearch) ocs = ocs.filter(o =>
         o.tipo.toLowerCase().includes(currentSearch) ||
-        o.desc.toLowerCase().includes(currentSearch) ||
-        o.bairro.toLowerCase().includes(currentSearch) ||
-        o.local.toLowerCase().includes(currentSearch)
+        ocDesc(o).toLowerCase().includes(currentSearch) ||
+        (o.bairro || '').toLowerCase().includes(currentSearch) ||
+        (o.local || '').toLowerCase().includes(currentSearch)
       );
       if (currentSort==='new')   ocs = [...ocs].sort((a,b)=>new Date(b.data)-new Date(a.data));
       if (currentSort==='old')   ocs = [...ocs].sort((a,b)=>new Date(a.data)-new Date(b.data));
@@ -215,7 +224,7 @@
               </div>
               ${badgeHtml(o.status)}
             </div>
-            <div class="oc-card-desc">${o.desc}</div>
+            <div class="oc-card-desc">${ocDesc(o)}</div>
             <div class="oc-card-footer">
               <div class="oc-card-meta">
                 <span><i class="fa-solid fa-map-pin"></i> ${o.bairro}</span>
@@ -250,11 +259,15 @@
     }
 
     function deleteOc(id) {
-      confirmDelete(id, () => {
-        const ocs = DB.ocorrencias.filter(o=>o.id!==id);
-        DB.ocorrencias = ocs;
-        showToast(`Ocorrência ${id} excluída.`, 'success');
-        renderList();
+      confirmDelete(id, async () => {
+        try {
+          await api(`ocorrencias/${encodeURIComponent(id)}`, { method: 'DELETE' });
+          allOcorrencias = allOcorrencias.filter(o => String(o.id) !== String(id));
+          showToast(`Ocorrência ${id} excluída.`, 'success');
+          renderList();
+        } catch (e) {
+          showToast(e.message || 'Erro ao excluir.', 'error');
+        }
       });
     }
   </script>

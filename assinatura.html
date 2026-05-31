@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply — Assinatura</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .plan-card {
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+    .plan-price {
+      font-family: var(--font-display);
+      font-size: 3rem;
+      color: var(--acid);
+      line-height: 1;
+      margin: 1rem 0 .25rem;
+    }
+    .plan-price small { font-size: 1rem; color: var(--text-3); }
+    .plan-features { text-align: left; margin: 1.5rem 0; display: flex; flex-direction: column; gap: .65rem; }
+    .plan-feature { display: flex; align-items: center; gap: .6rem; font-size: .88rem; color: var(--text-2); }
+    .plan-feature i { color: var(--acid); }
+    .plan-active {
+      border-color: var(--green);
+      background: linear-gradient(180deg, rgba(46,204,113,.08), transparent);
+    }
+    .plan-status { font-size: .85rem; color: var(--text-2); margin-top: 1rem; }
+  </style>
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <nav class="nav">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <button class="btn-icon" id="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
+      <a href="index.html" class="nav-logo"><div class="dot"></div>MAPLY</a>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocorrencias.html">Ocorrências</a>
+      <a href="mapa.html">Mapa</a>
+      <a href="nova.html">+ Nova</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
+    <button class="nav-mobile-btn" id="nav-mobile-btn"><i class="fa-solid fa-bars"></i></button>
+  </nav>
+  <div class="nav-drawer" id="nav-drawer">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="ocorrencias.html">Ocorrências</a>
+    <a href="mapa.html">Mapa</a>
+    <a href="nova.html">+ Nova Ocorrência</a>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">Menu</div>
+      <a href="dashboard.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-chart-simple"></i></span><span class="sidebar-label">Dashboard</span></a>
+      <a href="ocorrencias.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="sidebar-label">Ocorrências</span></a>
+      <a href="mapa.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-map"></i></span><span class="sidebar-label">Mapa</span></a>
+      <a href="nova.html" class="sidebar-item"><span class="sidebar-icon"><i class="fa-solid fa-plus"></i></span><span class="sidebar-label">Nova Ocorrência</span></a>
+      <div class="sidebar-section">Conta</div>
+      <a href="assinatura.html" class="sidebar-item active"><span class="sidebar-icon"><i class="fa-solid fa-credit-card"></i></span><span class="sidebar-label">Assinatura</span></a>
+      <a href="#" class="sidebar-item" onclick="logout()"><span class="sidebar-icon"><i class="fa-solid fa-door-open"></i></span><span class="sidebar-label">Sair</span></a>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">ASSINATURA</h1>
+          <p class="page-sub">Ative o plano premium para reportar ocorrências na sua cidade.</p>
+        </div>
+      </div>
+
+      <div class="plan-card" id="plan-card">
+        <div style="font-family:var(--font-display);font-size:1.4rem">PLANO PREMIUM</div>
+        <div class="plan-price">R$ 19,90<small>/mês</small></div>
+        <p style="color:var(--text-2);font-size:.88rem;margin-top:.5rem">Pagamento simulado para demonstração do hackathon.</p>
+
+        <div class="plan-features">
+          <div class="plan-feature"><i class="fa-solid fa-check"></i> Reportes ilimitados (grátis: 1 a cada 24h)</div>
+          <div class="plan-feature"><i class="fa-solid fa-check"></i> Mapa com todas as severidades e local exato</div>
+          <div class="plan-feature"><i class="fa-solid fa-check"></i> Grátis: mapa com média/alta e local aproximado</div>
+          <div class="plan-feature"><i class="fa-solid fa-check"></i> Dashboard e confirmação de ocorrências</div>
+        </div>
+
+        <div id="plan-action">
+          <button class="btn btn-primary btn-lg" id="btn-pagar" style="width:100%;justify-content:center">
+            <i class="fa-solid fa-credit-card"></i> Pagar
+          </button>
+        </div>
+        <div class="plan-status" id="plan-status"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+
+      $('#sidebar-toggle').addEventListener('click', () => {
+        $('#sidebar').classList.toggle('open');
+        $('#sidebar-overlay').classList.toggle('open');
+      });
+      $('#sidebar-overlay').addEventListener('click', () => {
+        $('#sidebar').classList.remove('open');
+        $('#sidebar-overlay').classList.remove('open');
+      });
+
+      try {
+        await refreshUser();
+      } catch (e) { /* token inválido redireciona no api() */ }
+
+      renderPlanState();
+    });
+
+    function bindPayButton() {
+      const btn = $('#btn-pagar');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Processando…';
+        try {
+          await paySubscription();
+          showToast('Pagamento aprovado! Assinatura ativa por 30 dias.', 'success');
+          renderPlanState();
+        } catch (e) {
+          showToast(e.message || 'Erro ao processar pagamento.', 'error');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-credit-card"></i> Pagar';
+        }
+      });
+    }
+
+    function renderPlanState() {
+      const u = Auth.user;
+      const active = isSubscribed(u);
+      const card = $('#plan-card');
+      const action = $('#plan-action');
+      const status = $('#plan-status');
+
+      if (active) {
+        card.classList.add('plan-active');
+        const exp = u.assinatura_expira_em
+          ? new Date(u.assinatura_expira_em).toLocaleDateString('pt-BR')
+          : '—';
+        action.innerHTML = `
+          <a href="nova.html" class="btn btn-primary btn-lg" style="width:100%;justify-content:center">
+            Reportar ocorrência →
+          </a>`;
+        status.innerHTML = `<span class="badge badge-resolvido"><i class="fa-solid fa-check-circle"></i> Assinatura ativa</span><br>Válida até <strong>${exp}</strong>`;
+      } else {
+        card.classList.remove('plan-active');
+        action.innerHTML = `
+          <button class="btn btn-primary btn-lg" id="btn-pagar" style="width:100%;justify-content:center">
+            <i class="fa-solid fa-credit-card"></i> Pagar
+          </button>`;
+        status.textContent = 'Você ainda não possui assinatura ativa.';
+        bindPayButton();
+      }
+    }
+  </script>
+</body>
+</html>

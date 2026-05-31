@@ -26,6 +26,24 @@
     .address-result { width:100%;display:block;text-align:left;padding:10px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer;font-size:.82rem;line-height:1.4; }
     .address-result:last-child { border-bottom:0; }
     .address-result:hover { background:var(--acid-dim);color:var(--text); }
+    .quota-banner {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 12px 16px;
+      margin-bottom: 1.25rem;
+      font-size: .85rem;
+      color: var(--text-2);
+      line-height: 1.5;
+    }
+    .quota-banner.premium { border-color: var(--green); background: var(--green-dim); }
+    .quota-banner.blocked { border-color: var(--orange); background: var(--orange-dim); }
+    .quota-timer {
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      color: var(--acid);
+      margin-top: 6px;
+    }
     @media(max-width:600px){ .tipo-grid{grid-template-columns:repeat(2,1fr);} }
   </style>
   <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
@@ -75,6 +93,7 @@
 
       <!-- FORM -->
       <div class="form-card" id="form-wrap">
+        <div id="quota-banner" class="quota-banner" style="display:none"></div>
         <div style="display:flex;flex-direction:column;gap:1.25rem">
 
           <!-- TIPO -->
@@ -141,8 +160,8 @@
           <div class="form-group">
             <label class="form-label">SEVERIDADE</label>
             <div style="display:flex;gap:.5rem" id="sev-group">
-              <button type="button" class="filter-chip active" data-sev="baixa"><i class="fa-solid fa-circle-check" style="color:var(--green)"></i> Baixa</button>
-              <button type="button" class="filter-chip" data-sev="media"><i class="fa-solid fa-circle" style="color:var(--orange)"></i> Média</button>
+              <button type="button" class="filter-chip" data-sev="baixa"><i class="fa-solid fa-circle-check" style="color:var(--green)"></i> Baixa</button>
+              <button type="button" class="filter-chip active" data-sev="media"><i class="fa-solid fa-circle" style="color:var(--orange)"></i> Média</button>
               <button type="button" class="filter-chip" data-sev="alta"><i class="fa-solid fa-circle" style="color:var(--red)"></i> Alta</button>
             </div>
           </div>
@@ -176,10 +195,14 @@
   <script src="app.js"></script>
   <script>
     let selectedTipo = '';
-    let selectedSev = 'baixa';
+    let selectedSev = 'media';
+    let quotaTimerId = null;
+    let occurrenceQuota = null;
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       if (!requireAuth()) return;
+
+      await loadOccurrenceQuota();
 
       // Set today as default date
       $('#f-data').value = new Date().toISOString().split('T')[0];
@@ -232,6 +255,70 @@
 
     function resetForm() {
       return resetOccurrenceForm();
+    }
+
+    async function loadOccurrenceQuota() {
+      try {
+        occurrenceQuota = await fetchOccurrenceQuota();
+        renderQuotaBanner();
+      } catch (e) {
+        console.warn('quota', e);
+      }
+    }
+
+    function renderQuotaBanner() {
+      const banner = $('#quota-banner');
+      const btn = $('#btn-submit');
+      if (!banner || !occurrenceQuota) return;
+
+      clearInterval(quotaTimerId);
+      banner.style.display = 'block';
+
+      if (occurrenceQuota.unlimited || occurrenceQuota.assinatura_ativa) {
+        banner.className = 'quota-banner premium';
+        banner.innerHTML = `
+          <strong style="color:var(--green)"><i class="fa-solid fa-infinity"></i> Plano Premium</strong><br>
+          Reportes ilimitados e localização exata no mapa.`;
+        if (btn) btn.disabled = false;
+        return;
+      }
+
+      if (occurrenceQuota.canCreate) {
+        banner.className = 'quota-banner';
+        banner.innerHTML = `
+          <strong>Plano gratuito</strong> — 1 reporte a cada 24 horas.<br>
+          <span style="font-size:.8rem">No mapa você vê ocorrências médias e altas (local aproximado). <a href="assinatura.html" style="color:var(--acid)">Assine</a> para ver tudo com local exato.</span>`;
+        if (btn) btn.disabled = false;
+        return;
+      }
+
+      banner.className = 'quota-banner blocked';
+      const getRemaining = () => {
+        if (occurrenceQuota.nextAvailableAt) {
+          return Math.max(0, new Date(occurrenceQuota.nextAvailableAt).getTime() - Date.now());
+        }
+        return Math.max(0, (occurrenceQuota.remainingMs || 0) - (Date.now() - (occurrenceQuota._loadedAt || Date.now())));
+      };
+
+      const updateTimer = () => {
+        const remaining = getRemaining();
+        if (remaining <= 0) {
+          occurrenceQuota.canCreate = true;
+          renderQuotaBanner();
+          return;
+        }
+        $('#quota-timer-val').textContent = formatCountdown(remaining);
+      };
+
+      occurrenceQuota._loadedAt = Date.now();
+      banner.innerHTML = `
+        <strong style="color:var(--orange)"><i class="fa-solid fa-clock"></i> Limite diário atingido</strong><br>
+        Próximo reporte disponível em:
+        <div class="quota-timer" id="quota-timer-val">${formatCountdown(occurrenceQuota.remainingMs)}</div>
+        <span style="font-size:.78rem">Assinantes têm reportes ilimitados. <a href="assinatura.html" style="color:var(--acid)">Assinar →</a></span>`;
+      if (btn) btn.disabled = true;
+      updateTimer();
+      quotaTimerId = setInterval(updateTimer, 1000);
     }
 
 
@@ -304,6 +391,8 @@
         localidade: data.localidade || null,
         uf: data.uf || null,
         complemento: data.complemento || null,
+        lat: data.lat ? parseFloat(data.lat) : null,
+        lon: data.lon ? parseFloat(data.lon) : null,
         source
       };
 
@@ -312,6 +401,20 @@
       $('#err-address').classList.remove('show');
       $('#address-results-main').classList.remove('show');
       $('#address-results-main').innerHTML = '';
+
+      if (!selectedAddress.lat && addressLabel(data).length >= 5) {
+        geocodeSelectedAddress(addressLabel(data));
+      }
+    }
+
+    async function geocodeSelectedAddress(q) {
+      try {
+        const items = await api(`enderecos/search?q=${encodeURIComponent(q)}`);
+        if (items.length && items[0].lat && items[0].lon) {
+          selectedAddress.lat = parseFloat(items[0].lat);
+          selectedAddress.lon = parseFloat(items[0].lon);
+        }
+      } catch (e) { /* servidor geocodifica no POST */ }
     }
 
     function handleOccurrenceCepInput() {
@@ -344,6 +447,10 @@
       try {
         const data = await api(`cep/${cep}`);
         selectAddress(data);
+        if (!selectedAddress?.lat) {
+          const label = [data.logradouro, data.bairro, data.localidade, data.uf].filter(Boolean).join(', ');
+          if (label) await geocodeSelectedAddress(label);
+        }
       } catch (e) {
         selectedAddress = null;
         setAddressStatus(e.message || 'Nao foi possivel buscar este CEP.', 'error');
@@ -409,7 +516,12 @@
         $('#err-desc').classList.add('show'); ok = false;
       } else { $('#err-desc').classList.remove('show'); }
 
-      if (!ok) { showToast('Preencha todos os campos obrigatorios.', 'error'); return; }
+      if (!ok) { showToast('Preencha todos os campos obrigatórios.', 'error'); return; }
+
+      if (occurrenceQuota && !occurrenceQuota.canCreate && !occurrenceQuota.unlimited) {
+        showToast('Aguarde o temporizador de 24h para registrar outra ocorrência.', 'error');
+        return;
+      }
 
       const localText = $('#f-local').value.trim();
       const localParts = selectedAddress.source === 'search'
@@ -434,16 +546,30 @@
             logradouro: selectedAddress.logradouro,
             complemento: $('#f-local').value.trim(),
             localidade: selectedAddress.localidade,
-            uf: selectedAddress.uf
+            uf: selectedAddress.uf,
+            severidade: selectedSev,
+            lat: selectedAddress.lat,
+            lon: selectedAddress.lon
           })
         });
 
+        await loadOccurrenceQuota();
         $('#form-wrap').style.display = 'none';
         const ss = $('#success-screen');
         ss.classList.add('show');
         $('#success-id').textContent = res.id;
       } catch (e) {
-        showToast(e.message || 'Nao foi possivel registrar a ocorrencia.', 'error');
+        if (e.status === 429) {
+          occurrenceQuota = {
+            canCreate: false,
+            unlimited: false,
+            remainingMs: e.remainingMs || 0,
+            nextAvailableAt: e.nextAvailableAt,
+            _loadedAt: Date.now()
+          };
+          renderQuotaBanner();
+        }
+        showToast(e.message || 'Não foi possível registrar a ocorrência.', 'error');
       }
     }
 

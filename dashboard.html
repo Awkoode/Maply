@@ -157,12 +157,19 @@
 
   <script src="app.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    let allOcorrencias = [];
+
+    document.addEventListener('DOMContentLoaded', async () => {
       if (!requireAuth()) return;
-      const u = DB.user;
+      const u = Auth.user;
       if (u) $('#welcome-msg').textContent = `Olá, ${u.nome.split(' ')[0]}! Acompanhe o estado do trânsito.`;
 
-      renderDashboard();
+      try {
+        allOcorrencias = await fetchOcorrencias();
+        renderDashboard(allOcorrencias);
+      } catch (e) {
+        showToast(e.message || 'Erro ao carregar dashboard.', 'error');
+      }
     });
 
     // Sidebar toggle
@@ -175,8 +182,7 @@
       document.getElementById('sidebar-overlay').classList.remove('open');
     });
 
-    function renderDashboard() {
-      const ocs = DB.ocorrencias;
+    function renderDashboard(ocs) {
       const total    = ocs.length;
       const abertos  = ocs.filter(o=>o.status==='aberto').length;
       const analise  = ocs.filter(o=>o.status==='analise').length;
@@ -247,7 +253,7 @@
           <div class="activity-icon"><i class="${icons[o.tipo]||'fa-solid fa-map-pin'}"></i></div>
           <div style="flex:1">
             <div class="activity-text"><strong>${o.tipo}</strong> — ${o.bairro}</div>
-            <div class="activity-text">${o.desc.slice(0,60)}…</div>
+            <div class="activity-text">${ocDesc(o).slice(0, 60)}…</div>
             <div class="activity-time">${o.id} · ${formatDate(o.data)}</div>
           </div>
           <div>${badgeHtml(o.status)}</div>

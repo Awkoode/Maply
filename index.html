@@ -228,26 +228,30 @@
 
   <script src="app.js"></script>
   <script>
-    // Animate counters
-    document.addEventListener('DOMContentLoaded', () => {
-      seedIfEmpty();
-      const ocs = DB.ocorrencias;
-      const total = ocs.length;
-      const res = ocs.filter(o=>o.status==='resolvido').length;
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const ocs = await fetchOcorrencias();
+        const total = ocs.length;
+        const res = ocs.filter(o => o.status === 'resolvido').length;
 
-      function counter(el, target, duration=1200) {
-        let start = 0, step = target / (duration/16);
-        const tick = () => {
-          start = Math.min(start+step, target);
-          el.textContent = Math.round(start);
-          if(start < target) requestAnimationFrame(tick);
-        };
-        tick();
+        function counter(el, target, duration = 1200) {
+          let start = 0;
+          const step = target / (duration / 16);
+          const tick = () => {
+            start = Math.min(start + step, target);
+            el.textContent = Math.round(start);
+            if (start < target) requestAnimationFrame(tick);
+          };
+          tick();
+        }
+        setTimeout(() => {
+          counter($('#stat-total'), total);
+          counter($('#stat-res'), res);
+        }, 600);
+      } catch (e) {
+        $('#stat-total').textContent = '—';
+        $('#stat-res').textContent = '—';
       }
-      setTimeout(()=>{
-        counter($('#stat-total'), total);
-        counter($('#stat-res'), res);
-      }, 600);
     });
   </script>
 </body>

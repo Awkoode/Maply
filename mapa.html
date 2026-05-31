@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maply — Mapa</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body.map-page {
+      overflow: hidden;
+      background: var(--bg);
+    }
+    body.map-page .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: rgba(10, 10, 15, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    #map {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    .map-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--text-2);
+      font-size: .9rem;
+    }
+    .map-overlay {
+      position: fixed;
+      z-index: 800;
+      pointer-events: none;
+    }
+    .map-info {
+      top: calc(var(--nav-h) + 12px);
+      left: 16px;
+      background: rgba(22, 22, 31, 0.92);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 10px 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,.4));
+    }
+    .map-info-title {
+      font-family: var(--font-display);
+      font-size: .95rem;
+      letter-spacing: .04em;
+      color: var(--text);
+    }
+    .map-info-sub {
+      font-size: .78rem;
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+    .map-legend {
+      bottom: 24px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: rgba(22, 22, 31, 0.92);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 10px 14px;
+      backdrop-filter: blur(10px);
+    }
+    .map-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .75rem;
+      color: var(--text-2);
+    }
+    .map-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .map-traffic-legend {
+      bottom: 24px;
+      right: 16px;
+      left: auto;
+      min-width: 160px;
+    }
+    .map-traffic-line {
+      width: 22px;
+      height: 4px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .traffic-status {
+      top: calc(var(--nav-h) + 12px);
+      right: 16px;
+      left: auto;
+      font-size: .72rem;
+      color: var(--text-3);
+      max-width: 200px;
+      text-align: right;
+      background: rgba(22, 22, 31, 0.92);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 10px 14px;
+      backdrop-filter: blur(10px);
+    }
+    .traffic-toggle {
+      pointer-events: auto;
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .72rem;
+      color: var(--acid);
+      cursor: pointer;
+      background: none;
+      border: 0;
+      padding: 0;
+    }
+    .tt-incident-icon, .tt-cluster { background: transparent !important; border: 0 !important; }
+    /* Leaflet dark overrides */
+    .leaflet-container {
+      background: #0a0a0f;
+      font-family: var(--font-body);
+    }
+    .leaflet-bar {
+      border: 1px solid var(--border) !important;
+      box-shadow: none !important;
+    }
+    .leaflet-bar a {
+      background: rgba(22, 22, 31, 0.95) !important;
+      color: var(--text) !important;
+      border-bottom-color: var(--border) !important;
+    }
+    .leaflet-bar a:hover {
+      background: var(--surface2) !important;
+      color: var(--acid) !important;
+    }
+    .leaflet-control-attribution {
+      background: rgba(10, 10, 15, 0.75) !important;
+      color: var(--text-3) !important;
+      font-size: 10px !important;
+      backdrop-filter: blur(6px);
+    }
+    .leaflet-control-attribution a {
+      color: var(--text-2) !important;
+    }
+    .leaflet-popup-content-wrapper {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    }
+    .leaflet-popup-tip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .leaflet-popup-content {
+      margin: 12px 14px;
+      font-size: .85rem;
+      line-height: 1.5;
+    }
+    .leaflet-popup-content a {
+      color: var(--acid);
+      font-weight: 600;
+    }
+    .leaflet-popup-close-button {
+      color: var(--text-3) !important;
+    }
+    .leaflet-popup-close-button:hover {
+      color: var(--text) !important;
+    }
+    @media (max-width: 768px) {
+      .map-legend, .map-traffic-legend { display: none; }
+      .map-info { right: 16px; left: 16px; }
+      .traffic-status { max-width: 140px; }
+    }
+  </style>
+  <script src="https://kit.fontawesome.com/faf1d5f386.js" crossorigin="anonymous"></script>
+</head>
+<body class="map-page">
+  <nav class="nav">
+    <a href="index.html" class="nav-logo"><div class="dot"></div>MAPLY</a>
+    <div class="nav-links">
+      <a href="index.html">Início</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocorrencias.html">Ocorrências</a>
+      <a href="mapa.html" class="active">Mapa</a>
+    </div>
+    <a href="login.html" class="nav-cta" id="nav-cta">Acessar Sistema →</a>
+    <div style="display:flex;align-items:center;gap:.75rem" id="nav-user"></div>
+    <button class="nav-mobile-btn" id="nav-mobile-btn"><i class="fa-solid fa-bars"></i></button>
+  </nav>
+  <div class="nav-drawer" id="nav-drawer">
+    <a href="index.html">Início</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="ocorrencias.html">Ocorrências</a>
+    <a href="mapa.html" class="active">Mapa</a>
+    <a href="login.html">→ Acessar Sistema</a>
+  </div>
+
+  <div id="map-loading" class="map-loading">Carregando e posicionando ocorrências…</div>
+  <div id="map"></div>
+
+  <div class="map-overlay map-info">
+    <div class="map-info-title">MAPA MAPLY</div>
+    <div class="map-info-sub" id="map-sub">Carregando…</div>
+  </div>
+
+  <div class="map-overlay traffic-status" id="traffic-status">
+    Trânsito
+    <div id="traffic-status-text">inicializando…</div>
+    <button type="button" class="traffic-toggle" id="traffic-refresh" title="Atualizar trânsito">
+      <i class="fa-solid fa-arrows-rotate"></i> Atualizar
+    </button>
+  </div>
+
+  <div class="map-overlay map-legend" id="map-legend">
+    <div style="font-size:.68rem;font-weight:700;color:var(--text-3);margin-bottom:4px">OCORRÊNCIAS</div>
+    <div class="map-legend-item"><span class="map-legend-dot" style="background:#2ecc71"></span> Baixa</div>
+    <div class="map-legend-item"><span class="map-legend-dot" style="background:#f5a623"></span> Média</div>
+    <div class="map-legend-item"><span class="map-legend-dot" style="background:#e84959"></span> Alta</div>
+    <div id="map-plan-hint" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:.7rem;color:var(--text-3);line-height:1.4"></div>
+  </div>
+
+  <div class="map-overlay map-legend map-traffic-legend" id="traffic-legend">
+    <div style="font-size:.68rem;font-weight:700;color:var(--text-3);margin-bottom:4px">TRÂNSITO </div>
+    <div class="map-legend-item"><span class="map-traffic-line" style="background:#30a860"></span> Normal</div>
+    <div class="map-legend-item"><span class="map-traffic-line" style="background:#ffd600"></span> Moderado</div>
+    <div class="map-legend-item"><span class="map-traffic-line" style="background:#ff9100"></span> Intenso</div>
+    <div class="map-legend-item"><span class="map-traffic-line" style="background:#e53935"></span> Severo</div>
+    <div class="map-legend-item"><span class="map-traffic-line" style="background:#7b001c"></span> Crítico</div>
+    <div id="traffic-tier-hint" style="margin-top:6px;font-size:.65rem;color:var(--text-3);line-height:1.35"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="app.js"></script>
+  <script src="traffic-layer.js"></script>
+  <script>
+    const sevColors = { baixa: '#2ecc71', media: '#f5a623', alta: '#e84959' };
+    let mapInstance = null;
+
+    function setTrafficStatus(state, meta = {}) {
+      const el = $('#traffic-status-text');
+      const hint = $('#traffic-tier-hint');
+      if (!el) return;
+
+      if (state === 'disabled') {
+        el.innerHTML = '<span style="color:var(--orange)">API key não configurada</span>';
+        if (hint) hint.textContent = 'Adicione TOMTOM_API_KEY no .env';
+        return;
+      }
+      if (state === 'loading') {
+        el.textContent = 'carregando viewport…';
+        return;
+      }
+      if (state === 'error') {
+        el.innerHTML = `<span style="color:var(--red)">${meta.message || 'erro'}</span>`;
+        return;
+      }
+      if (state === 'ready') {
+        const tierLabel = { low: 'região', medium: 'cidade', high: 'rua' }[meta.tier] || meta.tier;
+        el.textContent = `${meta.count} incidente${meta.count !== 1 ? 's' : ''}${meta.cached ? ' (cache)' : ''}`;
+        if (hint) {
+          hint.textContent = `Zoom ${tierLabel}: filtros otimizados para performance. Atualiza a cada 60s.`;
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (Auth.loggedIn) {
+        $('#nav-cta')?.remove();
+        await refreshUser().catch(() => {});
+      }
+
+      const map = L.map('map', {
+        zoomControl: false
+      }).setView([-23.5505, -46.6333], 12);
+      mapInstance = map;
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(map);
+
+      map.invalidateSize();
+
+      TomTomTraffic.init(map, { onStatusChange: setTrafficStatus });
+
+      $('#traffic-refresh')?.addEventListener('click', () => {
+        TomTomTraffic.loadTraffic(true);
+      });
+
+      try {
+        const data = await fetchMapOcorrencias();
+        const ocs = data.items || [];
+        const premium = data.assinatura_ativa;
+
+        $('#map-sub').textContent = `${ocs.length} ocorrência${ocs.length !== 1 ? 's' : ''} no mapa`;
+
+        const hint = $('#map-plan-hint');
+        if (hint) {
+          if (premium) {
+            hint.innerHTML = '<i class="fa-solid fa-check"></i> Premium: todas as severidades, local exato.';
+            $$('#map-legend .map-legend-item').forEach(el => { el.style.display = 'flex'; });
+          } else {
+            hint.innerHTML = Auth.loggedIn
+              ? 'Gratuito: média e alta, local aproximado. <a href="assinatura.html" style="color:var(--acid)">Assinar</a> para ver tudo.'
+              : 'Visitante: média e alta, local aproximado. <a href="login.html" style="color:var(--acid)">Entrar</a> para reportar.';
+            $$('#map-legend .map-legend-item').forEach((el, i) => {
+              el.style.display = i === 0 ? 'none' : 'flex';
+            });
+          }
+        }
+
+        const bounds = [];
+
+        for (const oc of ocs) {
+          if (!oc.lat || !oc.lon) continue;
+
+          const coords = [oc.lat, oc.lon];
+          const color = sevColors[oc.severidade] || '#c8ff00';
+          const radius = premium && !oc.local_aproximado ? 9 : 12;
+
+          const marker = L.circleMarker(coords, {
+            radius,
+            color: '#0a0a0f',
+            fillColor: color,
+            fillOpacity: oc.local_aproximado ? 0.65 : 0.9,
+            weight: 2,
+            dashArray: oc.local_aproximado ? '4 4' : null
+          }).addTo(map);
+
+          const locLabel = oc.local_aproximado
+            ? `${oc.bairro || 'Bairro'} <span style="font-size:.75rem;color:var(--text-3)">(aprox.)</span>`
+            : (oc.local || oc.bairro || '');
+
+          const link = Auth.loggedIn
+            ? `<a href="detalhe.html?id=${oc.id}">Ver detalhes →</a>`
+            : `<a href="login.html">Entrar para ver →</a>`;
+
+          marker.bindPopup(`
+            <strong>${oc.tipo}</strong><br>
+            <span style="color:var(--text-2)">${locLabel}</span><br>
+            ${severidadeBadgeHtml(oc.severidade)} ${badgeHtml(oc.status)}<br>
+            ${link}
+          `);
+          bounds.push(coords);
+        }
+
+        if (bounds.length) {
+          map.fitBounds(bounds, { padding: [80, 80], maxZoom: 15 });
+        } else {
+          $('#map-sub').textContent = premium
+            ? 'Nenhuma ocorrência com coordenadas ainda'
+            : 'Nenhuma ocorrência média/alta com coordenadas';
+        }
+      } catch (e) {
+        $('#map-sub').textContent = 'Erro ao carregar ocorrências';
+        showToast(e.message || 'Erro ao carregar ocorrências.', 'error');
+      } finally {
+        $('#map-loading')?.remove();
+        map.invalidateSize();
+      }
+
+      window.addEventListener('resize', () => map.invalidateSize());
+    });
+  </script>
+</body>
+</html>

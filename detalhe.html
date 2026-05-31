@@ -176,28 +176,37 @@
   <script src="app.js"></script>
   <script>
     let currentOc = null;
+    let allOcorrencias = [];
     let voted = false;
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       if (!requireAuth()) return;
 
       const params = new URLSearchParams(location.search);
       const id = params.get('id');
       if (!id) { showNotFound(); return; }
 
-      const ocs = DB.ocorrencias;
-      currentOc = ocs.find(o=>o.id===id);
-      if (!currentOc) { showNotFound(); return; }
+      try {
+        currentOc = await fetchOcorrencia(id);
+        allOcorrencias = await fetchOcorrencias();
+      } catch (e) {
+        showNotFound();
+        return;
+      }
 
       renderDetail();
 
       $('#btn-save').addEventListener('click', saveEdits);
       $('#btn-reset').addEventListener('click', resetEdits);
       $('#btn-delete').addEventListener('click', () => {
-        confirmDelete(currentOc.id, () => {
-          DB.ocorrencias = DB.ocorrencias.filter(o=>o.id!==currentOc.id);
-          showToast('Ocorrência excluída.', 'success');
-          setTimeout(() => location.href = 'ocorrencias.html', 800);
+        confirmDelete(currentOc.id, async () => {
+          try {
+            await api(`ocorrencias/${encodeURIComponent(currentOc.id)}`, { method: 'DELETE' });
+            showToast('Ocorrência excluída.', 'success');
+            setTimeout(() => location.href = 'ocorrencias.html', 800);
+          } catch (err) {
+            showToast(err.message || 'Erro ao excluir.', 'error');
+          }
         });
       });
       $('#vote-btn').addEventListener('click', doVote);
@@ -233,12 +242,12 @@
       $('#d-local').textContent = o.local;
       $('#d-data').textContent = formatDate(o.data);
       $('#d-status').innerHTML = badgeHtml(o.status);
-      $('#d-desc').textContent = o.desc;
+      $('#d-desc').textContent = ocDesc(o);
       $('#vote-count').textContent = o.votos || 0;
 
       // Edit fields
       $('#edit-status').value = o.status;
-      $('#edit-desc').value = o.desc;
+      $('#edit-desc').value = ocDesc(o);
       $('#edit-local').value = o.local;
 
       // Status steps
@@ -252,9 +261,9 @@
       });
 
       // Related (same bairro, different id)
-      const related = DB.ocorrencias.filter(r=>r.bairro===o.bairro && r.id!==o.id).slice(0,4);
+      const related = allOcorrencias.filter(r => r.bairro === o.bairro && String(r.id) !== String(o.id)).slice(0, 4);
       if (related.length) {
-        $('#related-list').innerHTML = related.map(r=>`
+        $('#related-list').innerHTML = related.map(r => `
           <div class="oc-card card-hover" style="cursor:pointer" onclick="location.href='detalhe.html?id=${r.id}'">
             <div class="oc-card-header">
               <div>
@@ -263,7 +272,7 @@
               </div>
               ${badgeHtml(r.status)}
             </div>
-            <div class="oc-card-desc" style="font-size:.82rem">${r.desc.slice(0,80)}…</div>
+            <div class="oc-card-desc" style="font-size:.82rem">${ocDesc(r).slice(0, 80)}…</div>
           </div>
         `).join('');
       } else {
@@ -271,41 +280,44 @@
       }
     }
 
-    function saveEdits() {
+    async function saveEdits() {
       const newStatus = $('#edit-status').value;
       const newDesc   = $('#edit-desc').value.trim();
       const newLocal  = $('#edit-local').value.trim();
 
-      if (!newDesc || !newLocal) { showToast('Preencha todos os campos.','error'); return; }
+      if (!newDesc || !newLocal) { showToast('Preencha todos os campos.', 'error'); return; }
 
-      const ocs = DB.ocorrencias.map(o => {
-        if (o.id !== currentOc.id) return o;
-        return { ...o, status: newStatus, desc: newDesc, local: newLocal };
-      });
-      DB.ocorrencias = ocs;
-      currentOc = ocs.find(o=>o.id===currentOc.id);
-      renderDetail();
-      showToast('Alterações salvas com sucesso!', 'success');
+      try {
+        await api(`ocorrencias/${encodeURIComponent(currentOc.id)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: newStatus, descricao: newDesc, local: newLocal })
+        });
+        currentOc = { ...currentOc, status: newStatus, descricao: newDesc, desc: newDesc, local: newLocal };
+        renderDetail();
+        showToast('Alterações salvas com sucesso!', 'success');
+      } catch (e) {
+        showToast(e.message || 'Erro ao salvar.', 'error');
+      }
     }
 
     function resetEdits() {
       $('#edit-status').value = currentOc.status;
-      $('#edit-desc').value = currentOc.desc;
+      $('#edit-desc').value = ocDesc(currentOc);
       $('#edit-local').value = currentOc.local;
     }
 
-    function doVote() {
-      if (voted) { showToast('Você já confirmou esta ocorrência.','info'); return; }
-      voted = true;
-      const ocs = DB.ocorrencias.map(o => {
-        if (o.id !== currentOc.id) return o;
-        return { ...o, votos: (o.votos||0)+1 };
-      });
-      DB.ocorrencias = ocs;
-      currentOc = ocs.find(o=>o.id===currentOc.id);
-      $('#vote-count').textContent = currentOc.votos;
-      $('#vote-btn').classList.add('voted');
-      showToast('Obrigado por confirmar!', 'success');
+    async function doVote() {
+      if (voted) { showToast('Você já confirmou esta ocorrência.', 'info'); return; }
+      try {
+        const res = await api(`ocorrencias/${encodeURIComponent(currentOc.id)}/vote`, { method: 'POST' });
+        voted = true;
+        currentOc.votos = res.votos;
+        $('#vote-count').textContent = res.votos;
+        $('#vote-btn').classList.add('voted');
+        showToast('Obrigado por confirmar!', 'success');
+      } catch (e) {
+        showToast(e.message || 'Erro ao votar.', 'error');
+      }
     }
 
     function showNotFound() {
