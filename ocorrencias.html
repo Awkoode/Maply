@@ -75,11 +75,15 @@
         <button class="filter-chip" data-filter="aberto"><i class="fa-solid fa-circle" style="color:var(--red)"></i> Aberto</button>
         <button class="filter-chip" data-filter="analise"><i class="fa-solid fa-circle" style="color:var(--orange)"></i> Em análise</button>
         <button class="filter-chip" data-filter="resolvido"><i class="fa-solid fa-circle-check" style="color:var(--green)"></i> Resolvido</button>
+        <button class="filter-chip" data-filter="favoritos">
+          ⭐ Favoritos
+        </button>
         <select class="form-input" style="width:auto;min-width:160px" id="sort-sel">
           <option value="new">Mais recentes</option>
           <option value="old">Mais antigas</option>
           <option value="votes">Mais votados</option>
         </select>
+        
       </div>
 
       <!-- GRID VIEW -->
@@ -121,13 +125,21 @@
     let currentSearch = '';
     let viewMode = 'grid';
     let allOcorrencias = [];
+    let favoritosSet = new Set();
+    
 
     document.addEventListener('DOMContentLoaded', async () => {
       if (!requireAuth()) return;
 
       try {
         allOcorrencias = await fetchOcorrencias();
-        renderList();
+
+    const favoritos = await api('favoritos');
+    favoritosSet = new Set(
+      favoritos.map(f => String(f.ocorrencia_id))
+    );
+
+    renderList();
       } catch (e) {
         $('#oc-count-label').textContent = 'Erro ao carregar';
         showToast(e.message || 'Erro ao carregar ocorrências.', 'error');
@@ -186,19 +198,48 @@
     });
 
     function getFiltered() {
-      let ocs = allOcorrencias;
-      if (currentFilter !== 'all') ocs = ocs.filter(o => o.status === currentFilter);
-      if (currentSearch) ocs = ocs.filter(o =>
-        o.tipo.toLowerCase().includes(currentSearch) ||
-        ocDesc(o).toLowerCase().includes(currentSearch) ||
-        (o.bairro || '').toLowerCase().includes(currentSearch) ||
-        (o.local || '').toLowerCase().includes(currentSearch)
-      );
-      if (currentSort==='new')   ocs = [...ocs].sort((a,b)=>new Date(b.data)-new Date(a.data));
-      if (currentSort==='old')   ocs = [...ocs].sort((a,b)=>new Date(a.data)-new Date(b.data));
-      if (currentSort==='votes') ocs = [...ocs].sort((a,b)=>(b.votos||0)-(a.votos||0));
-      return ocs;
-    }
+  let ocs = allOcorrencias;
+
+  if (currentFilter === 'favoritos') {
+    ocs = ocs.filter(o =>
+      favoritosSet.has(String(o.id))
+    );
+  } else if (currentFilter !== 'all') {
+    ocs = ocs.filter(o => o.status === currentFilter);
+  }
+
+  if (currentSearch) {
+    ocs = ocs.filter(o =>
+      o.tipo.toLowerCase().includes(currentSearch) ||
+      ocDesc(o).toLowerCase().includes(currentSearch) ||
+      (o.bairro || '').toLowerCase().includes(currentSearch) ||
+      (o.local || '').toLowerCase().includes(currentSearch)
+    );
+  }
+
+  if (currentSort === 'new') {
+    ocs = [...ocs].sort((a, b) => new Date(b.data) - new Date(a.data));
+  }
+
+  if (currentSort === 'old') {
+    ocs = [...ocs].sort((a, b) => new Date(a.data) - new Date(b.data));
+  }
+
+  if (currentSort === 'votes') {
+    ocs = [...ocs].sort((a, b) => (b.votos || 0) - (a.votos || 0));
+  }
+
+  ocs = [...ocs].sort((a, b) => {
+    const aFav = favoritosSet.has(String(a.id));
+    const bFav = favoritosSet.has(String(b.id));
+
+    if (aFav && !bFav) return -1;
+    if (!aFav && bFav) return 1;
+    return 0;
+  });
+
+  return ocs;
+}
 
     const icons = {
       'Buraco na via':'fa-solid fa-road-circle-exclamation',
@@ -233,8 +274,22 @@
                 <span><i class="fa-solid fa-thumbs-up"></i> ${o.votos||0}</span>
               </div>
               <div style="display:flex;gap:4px">
+
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="toggleFavorito('${o.id}')"
+                  title="Favorito">
+                  ${favoritosSet.has(String(o.id)) ? '⭐' : '☆'}
+                </button>
+
                 <a href="detalhe.html?id=${o.id}" class="btn btn-secondary btn-sm">Ver</a>
-                <button class="btn btn-danger btn-sm" onclick="deleteOc('${o.id}')"><i class="fa-solid fa-trash"></i></button>
+
+                <button
+                  class="btn btn-danger btn-sm"
+                  onclick="deleteOc('${o.id}')">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+
               </div>
             </div>
           </div>
@@ -258,6 +313,33 @@
         `).join('');
       }
     }
+
+
+    async function toggleFavorito(id) {
+  try {
+    const isFav = favoritosSet.has(String(id));
+
+    if (isFav) {
+      await api(`favoritos/${id}`, {
+        method: 'DELETE'
+      });
+
+      favoritosSet.delete(String(id));
+      showToast('Favorito removido.', 'success');
+    } else {
+      await api(`favoritos/${id}`, {
+        method: 'POST'
+      });
+
+      favoritosSet.add(String(id));
+      showToast('Favoritado.', 'success');
+    }
+
+    renderList();
+  } catch (e) {
+    showToast('Erro ao atualizar favorito.', 'error');
+  }
+}
 
     function deleteOc(id) {
       confirmDelete(id, async () => {

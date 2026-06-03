@@ -635,6 +635,39 @@ app.post('/api/ocorrencias/:id/vote', authMiddleware, async (req, res) => {
   res.json({ votos: result.rows[0].votos });
 });
 
+app.get('/api/favoritos', authMiddleware, async (req, res) => {
+  const result = await query(
+    `SELECT ocorrencia_id
+     FROM favoritos
+     WHERE user_id = $1`,
+    [req.user.id]
+  );
+
+  res.json(result.rows);
+});
+
+app.post('/api/favoritos/:id', authMiddleware, async (req, res) => {
+  await query(
+    `INSERT INTO favoritos (user_id, ocorrencia_id)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id, ocorrencia_id) DO NOTHING`,
+    [req.user.id, req.params.id]
+  );
+
+  res.json({ success: true });
+});
+
+app.delete('/api/favoritos/:id', authMiddleware, async (req, res) => {
+  await query(
+    `DELETE FROM favoritos
+     WHERE user_id = $1
+     AND ocorrencia_id = $2`,
+    [req.user.id, req.params.id]
+  );
+
+  res.json({ success: true });
+});
+
 app.get('/api/cep/:cep', async (req, res) => {
   const cep = String(req.params.cep || '').replace(/\D/g, '');
   if (!cep || cep.length !== 8) {

@@ -427,38 +427,46 @@
 
         const bounds = [];
 
-        for (const oc of ocs) {
-          if (!oc.lat || !oc.lon) continue;
+const favoritos = await api('favoritos');
+const favoritosSet = new Set(
+  favoritos.map(f => String(f.ocorrencia_id))
+);
 
-          const coords = [oc.lat, oc.lon];
-          const color = sevColors[oc.severidade] || '#c8ff00';
-          const radius = premium && !oc.local_aproximado ? 9 : 12;
+for (const oc of ocs) {
+  if (!oc.lat || !oc.lon) continue;
 
-          const marker = L.circleMarker(coords, {
-            radius,
-            color: '#0a0a0f',
-            fillColor: color,
-            fillOpacity: oc.local_aproximado ? 0.65 : 0.9,
-            weight: 2,
-            dashArray: oc.local_aproximado ? '4 4' : null
-          }).addTo(map);
+  const coords = [oc.lat, oc.lon];
+  const color = sevColors[oc.severidade] || '#c8ff00';
+  const radius = premium && !oc.local_aproximado ? 9 : 12;
 
-          const locLabel = oc.local_aproximado
-            ? `${oc.bairro || 'Bairro'} <span style="font-size:.75rem;color:var(--text-3)">(aprox.)</span>`
-            : (oc.local || oc.bairro || '');
+  const isFavorito = favoritosSet.has(String(oc.id));
 
-          const link = Auth.loggedIn
-            ? `<a href="detalhe.html?id=${oc.id}">Ver detalhes →</a>`
-            : `<a href="login.html">Entrar para ver →</a>`;
+  const marker = L.circleMarker(coords, {
+    radius: isFavorito ? 14 : radius,
+    color: isFavorito ? '#ffd700' : '#0a0a0f',
+    fillColor: color,
+    fillOpacity: oc.local_aproximado ? 0.65 : 0.9,
+    weight: isFavorito ? 4 : 2,
+    dashArray: oc.local_aproximado ? '4 4' : null
+  }).addTo(map);
 
-          marker.bindPopup(`
-            <strong>${oc.tipo}</strong><br>
-            <span style="color:var(--text-2)">${locLabel}</span><br>
-            ${severidadeBadgeHtml(oc.severidade)} ${badgeHtml(oc.status)}<br>
-            ${link}
-          `);
-          bounds.push(coords);
-        }
+  const locLabel = oc.local_aproximado
+    ? `${oc.bairro || 'Bairro'} <span style="font-size:.75rem;color:var(--text-3)">(aprox.)</span>`
+    : (oc.local || oc.bairro || '');
+
+  const link = Auth.loggedIn
+    ? `<a href="detalhe.html?id=${oc.id}">Ver detalhes →</a>`
+    : `<a href="login.html">Entrar para ver →</a>`;
+
+  marker.bindPopup(`
+    <strong>${oc.tipo}</strong><br>
+    <span style="color:var(--text-2)">${locLabel}</span><br>
+    ${severidadeBadgeHtml(oc.severidade)} ${badgeHtml(oc.status)}<br>
+    ${link}
+  `);
+
+  bounds.push(coords);
+}
 
         if (bounds.length) {
           map.fitBounds(bounds, { padding: [80, 80], maxZoom: 15 });
